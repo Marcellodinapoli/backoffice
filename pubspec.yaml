@@ -1,0 +1,54 @@
+name: backoffice
+description: Backoffice di gestione per CreditPlanet
+publish_to: 'none'
+
+version: 1.0.0+1
+
+environment:
+  sdk: '>=3.0.0 <4.0.0'
+
+dependencies:
+  flutter:
+    sdk: flutter
+
+  cupertino_icons: ^1.0.6
+  qr_flutter: ^4.1.0
+
+  # 🔹 Firebase (versioni compatibili tra loro)
+  firebase_core: ^2.24.2
+  cloud_firestore: ^4.13.6
+  firebase_auth: ^4.17.8
+  firebase_storage: ^11.6.6
+  cloud_functions: ^4.0.7   # ⬅️ AGGIUNTO (necessario per deleteUserCompletely)
+
+  # 🔹 Selettore file aggiornato (risolve warning multipiattaforma)
+  file_picker: ^6.1.1
+
+  # 🔹 Apertura link cross-platform (Web, Desktop, Mobile)
+  url_launcher: ^6.3.1
+
+  # 🔹 Biometria (solo Android/iOS/Windows/macOS)
+  local_auth: ^2.3.0
+
+  # 🔹 HTTP per notifiche push e API esterne
+  http: ^1.2.1
+
+  # 🔹 Lettura file Excel (.xlsx) per i quiz
+  excel: ^4.0.6
+
+  # 🔹 PDF export
+  pdf: ^3.10.0
+
+  # 🔹 Rendering Markdown per regolamenti e testi formattati
+  flutter_markdown:
+
+dev_dependencies:
+  flutter_test:
+    sdk: flutter
+  flutter_lints: ^3.0.0
+
+flutter:
+  uses-material-design: true
+
+  assets:
+    - assets/icons/

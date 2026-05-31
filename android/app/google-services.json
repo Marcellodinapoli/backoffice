@@ -1,0 +1,48 @@
+{
+  "project_info": {
+    "project_number": "602919345054",
+    "project_id": "backoffice-8f2b7",
+    "storage_bucket": "backoffice-8f2b7.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:602919345054:android:886d0ff899d158c95b548f",
+        "android_client_info": {
+          "package_name": "com.example.admin_qr_app"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyDxtj2txOMI8ECNacN4A6GDU9dZ23Tbin0"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    },
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:602919345054:android:08fd20a08be0d6845b548f",
+        "android_client_info": {
+          "package_name": "com.example.backoffice"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyDxtj2txOMI8ECNacN4A6GDU9dZ23Tbin0"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}
