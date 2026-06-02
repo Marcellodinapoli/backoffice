@@ -23,6 +23,7 @@ import 'pages/bk_roleplay_page.dart';
 import 'pages/bk_community_page.dart';
 import 'pages/bk_support_page.dart';
 import 'pages/bk_job_rules_page.dart';
+import 'pages/bk_windows_app_page.dart';
 
 // -----------------------------------------------------------------------------
 // PAGE
@@ -58,6 +59,7 @@ class _BackOfficeShellState extends State<BackOfficeShell> {
     BkSecurityPage(),
     BkCommunityPage(),
     BkSupportPage(),
+    BkWindowsAppPage(),
   ];
 
   final List<String> _titles = const [
@@ -76,6 +78,7 @@ class _BackOfficeShellState extends State<BackOfficeShell> {
     'Sicurezza',
     'Community',
     'Assistenza',
+    'App Windows',
   ];
 
   final List<IconData> _icons = const [
@@ -94,6 +97,7 @@ class _BackOfficeShellState extends State<BackOfficeShell> {
     Icons.security_outlined,
     Icons.forum_outlined,
     Icons.support_agent_outlined,
+    Icons.desktop_windows_outlined,
   ];
 
   // ---------------------------------------------------------------------------
