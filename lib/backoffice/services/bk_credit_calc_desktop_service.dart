@@ -55,70 +55,158 @@ class BkCreditCalcDesktopService {
     required String version,
     required String windowsDownloadUrl,
     String? releaseNotes,
+    String? windowsInstallerUrl,
   }) async {
-    await _doc.set({
+    final url = windowsDownloadUrl.trim();
+    final data = <String, dynamic>{
       'enabled': enabled,
       'version': version.trim(),
-      'windowsDownloadUrl': windowsDownloadUrl.trim(),
+      'windowsDownloadUrl': url,
       'releaseNotes': (releaseNotes ?? '').trim(),
       'updatedAt': FieldValue.serverTimestamp(),
       'updatedBy': 'backoffice',
-    }, SetOptions(merge: true));
+    };
+
+    final installer = windowsInstallerUrl?.trim() ?? '';
+    if (installer.isNotEmpty) {
+      data['windowsInstallerUrl'] = installer;
+      // Planet legge prima l installer: allinea anche il campo legacy.
+      data['windowsDownloadUrl'] = installer;
+    } else if (url.toLowerCase().contains('-setup.exe')) {
+      data['windowsInstallerUrl'] = url;
+    } else {
+      data['windowsInstallerUrl'] = FieldValue.delete();
+    }
+
+    await _doc.set(data, SetOptions(merge: true));
   }
 
-  /// Carica installer `.exe` (consigliato) o ZIP su Storage.
+  /// Nome file attivo per Planet (da config Firestore).
+  static String? activeFileNameFromConfig(Map<String, dynamic>? config) {
+    if (config == null) return null;
+    final url = planetDownloadUrl(config);
+    if (url.isEmpty) return null;
+    final decoded = Uri.decodeComponent(url);
+    final match = RegExp(r'/([^/?]+)(\?|$)').firstMatch(decoded);
+    return match?.group(1);
+  }
+
+  /// URL usato da CreditCalc/Planet (installer ha priorità).
+  static String planetDownloadUrl(Map<String, dynamic> config) {
+    final installer = (config['windowsInstallerUrl'] ?? '').toString().trim();
+    if (installer.isNotEmpty) return installer;
+    return (config['windowsDownloadUrl'] ?? '').toString().trim();
+  }
+
+  /// Carica solo l installer Setup.exe (consigliato per Planet).
+  static Future<String> uploadReleaseInstaller({
+    required String version,
+    required void Function(double progress) onProgress,
+  }) =>
+      uploadReleasePackage(
+        version: version,
+        onProgress: onProgress,
+        installerOnly: true,
+      );
+
+  /// Carica installer `.exe` o ZIP su Storage.
   static Future<String> uploadReleasePackage({
     required String version,
     required void Function(double progress) onProgress,
+    bool installerOnly = false,
+    bool zipOnly = false,
   }) async {
     final result = await FilePicker.platform.pickFiles(
       type: FileType.custom,
-      allowedExtensions: ['exe', 'zip'],
+      allowedExtensions: installerOnly
+          ? ['exe']
+          : zipOnly
+              ? ['zip']
+              : ['exe', 'zip'],
       withData: kIsWeb,
+      allowMultiple: false,
+      dialogTitle: installerOnly
+          ? 'Seleziona CreditCalc-*-Setup.exe'
+          : zipOnly
+              ? 'Seleziona CreditCalc-*-win64.zip'
+              : 'Seleziona Setup.exe o ZIP',
     );
     if (result == null || result.files.isEmpty) {
       throw Exception('Nessun file selezionato.');
     }
 
     final file = result.files.single;
-    final pickedName = (file.name).toLowerCase();
+    final pickedName = file.name.toLowerCase();
     final isExe = pickedName.endsWith('.exe');
+    if (installerOnly && !isExe) {
+      throw Exception(
+        'Devi selezionare CreditCalc-$version-Setup.exe (non lo ZIP).',
+      );
+    }
+    if (zipOnly && !pickedName.endsWith('.zip')) {
+      throw Exception('Seleziona un file .zip.');
+    }
     if (!isExe && !pickedName.endsWith('.zip')) {
       throw Exception('Seleziona CreditCalc-*-Setup.exe o un file .zip.');
     }
 
     final objectName = isExe ? setupObjectName(version) : zipObjectName(version);
 
-    final ref = FirebaseStorage.instance.ref('$storageFolder/$objectName');
-    final contentType = isExe
-        ? 'application/vnd.microsoft.portable-executable'
-        : 'application/zip';
+    return _uploadFileToStorage(
+      file: file,
+      storagePath: '$storageFolder/$objectName',
+      contentType: isExe ? 'application/octet-stream' : 'application/zip',
+      onProgress: onProgress,
+    );
+  }
+
+  static Future<String> _uploadFileToStorage({
+    required PlatformFile file,
+    required String storagePath,
+    required String contentType,
+    required void Function(double progress) onProgress,
+  }) async {
+    final ref = FirebaseStorage.instance.ref(storagePath);
 
     UploadTask uploadTask;
     if (kIsWeb) {
-      if (file.bytes == null) {
-        throw Exception('Impossibile leggere il file.');
+      if (file.bytes == null || file.bytes!.isEmpty) {
+        throw Exception(
+          'Impossibile leggere ${file.name} nel browser. '
+          'Prova da Firebase Console → Carica file, oppure esegui il BackOffice su Windows.',
+        );
       }
+      onProgress(0.01);
       uploadTask = ref.putData(
         file.bytes!,
-        SettableMetadata(contentType: contentType),
+        SettableMetadata(
+          contentType: contentType,
+          customMetadata: {'originalName': file.name},
+        ),
       );
     } else if (file.path != null) {
       uploadTask = ref.putFile(
         io.File(file.path!),
-        SettableMetadata(contentType: contentType),
+        SettableMetadata(
+          contentType: contentType,
+          customMetadata: {'originalName': file.name},
+        ),
       );
     } else {
-      throw Exception('Impossibile leggere il file.');
+      throw Exception('Impossibile leggere il file selezionato.');
     }
 
-    uploadTask.snapshotEvents.listen((event) {
-      if (event.totalBytes > 0) {
-        onProgress(event.bytesTransferred / event.totalBytes);
+    await for (final event in uploadTask.snapshotEvents) {
+      final total = event.totalBytes;
+      if (total > 0) {
+        onProgress(event.bytesTransferred / total);
       }
-    });
+    }
 
     final snapshot = await uploadTask;
+    if (snapshot.state != TaskState.success) {
+      throw Exception('Upload non completato: ${snapshot.state}');
+    }
     return snapshot.ref.getDownloadURL();
   }
 

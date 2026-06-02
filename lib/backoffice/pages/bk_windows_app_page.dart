@@ -1,4 +1,5 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:firebase_storage/firebase_storage.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:url_launcher/url_launcher.dart';
@@ -89,7 +90,7 @@ class _BkWindowsAppPageState extends State<BkWindowsAppPage> {
     }
   }
 
-  Future<void> _uploadPackage() async {
+  Future<void> _uploadPackage({required bool installerOnly}) async {
     final version = _versionCtrl.text.trim();
     if (version.isEmpty) {
       _snack('Inserisci la versione prima di caricare.', isError: true);
@@ -105,16 +106,25 @@ class _BkWindowsAppPageState extends State<BkWindowsAppPage> {
     });
 
     try {
-      final url = await BkCreditCalcDesktopService.uploadReleasePackage(
-        version: version,
-        onProgress: (p) {
-          if (mounted) setState(() => _uploadProgress = p);
-        },
-      );
+      final url = installerOnly
+          ? await BkCreditCalcDesktopService.uploadReleaseInstaller(
+              version: version,
+              onProgress: (p) {
+                if (mounted) setState(() => _uploadProgress = p);
+              },
+            )
+          : await BkCreditCalcDesktopService.uploadReleasePackage(
+              version: version,
+              zipOnly: true,
+              onProgress: (p) {
+                if (mounted) setState(() => _uploadProgress = p);
+              },
+            );
       await BkCreditCalcDesktopService.saveConfig(
         enabled: enabled,
         version: version,
         windowsDownloadUrl: url,
+        windowsInstallerUrl: url,
         releaseNotes: notes,
       );
       if (mounted) {
@@ -125,6 +135,13 @@ class _BkWindowsAppPageState extends State<BkWindowsAppPage> {
           _urlCtrl.clear();
         });
         _snack('Release v$version attiva su Planet.');
+      }
+    } on FirebaseException catch (e) {
+      if (mounted) {
+        _snack(
+          'Upload rifiutato (${e.code}): ${e.message ?? e.plugin}',
+          isError: true,
+        );
       }
     } catch (e) {
       if (mounted) _snack('Upload fallito: $e', isError: true);
@@ -147,10 +164,13 @@ class _BkWindowsAppPageState extends State<BkWindowsAppPage> {
 
     setState(() => _loading = true);
     try {
+      final isSetup =
+          BkCreditCalcDesktopService.isInstallerFileName(zip.name);
       await BkCreditCalcDesktopService.saveConfig(
         enabled: _enabled,
         version: version,
         windowsDownloadUrl: zip.downloadUrl,
+        windowsInstallerUrl: isSetup ? zip.downloadUrl : '',
         releaseNotes: _notesCtrl.text,
       );
       if (mounted) {
@@ -169,9 +189,15 @@ class _BkWindowsAppPageState extends State<BkWindowsAppPage> {
     }
   }
 
+  String _planetUrlFromConfig(Map<String, dynamic> config) {
+    final installer = (config['windowsInstallerUrl'] ?? '').toString().trim();
+    if (installer.isNotEmpty) return installer;
+    return (config['windowsDownloadUrl'] ?? '').toString().trim();
+  }
+
   bool _isActiveRelease(DesktopReleaseZip zip, Map<String, dynamic>? config) {
     if (config == null) return false;
-    final activeUrl = (config['windowsDownloadUrl'] ?? '').toString().trim();
+    final activeUrl = _planetUrlFromConfig(config);
     if (activeUrl.isNotEmpty && zip.downloadUrl == activeUrl) return true;
 
     final activeVer = (config['version'] ?? '').toString().trim();
@@ -331,10 +357,18 @@ class _BkWindowsAppPageState extends State<BkWindowsAppPage> {
                         runSpacing: 12,
                         children: [
                           FilledButton.icon(
-                            onPressed:
-                                _uploading || _loading ? null : _uploadPackage,
+                            onPressed: _uploading || _loading
+                                ? null
+                                : () => _uploadPackage(installerOnly: true),
                             icon: const Icon(Icons.install_desktop),
-                            label: const Text('Carica installer su Firebase'),
+                            label: const Text('Carica Setup.exe'),
+                          ),
+                          OutlinedButton.icon(
+                            onPressed: _uploading || _loading
+                                ? null
+                                : () => _uploadPackage(installerOnly: false),
+                            icon: const Icon(Icons.folder_zip),
+                            label: const Text('Carica ZIP'),
                           ),
                           OutlinedButton.icon(
                             onPressed: _uploading || _loading
@@ -406,6 +440,54 @@ class _BkWindowsAppPageState extends State<BkWindowsAppPage> {
                         ),
                       ),
                       const SizedBox(height: 12),
+                      if (firestoreConfig != null) ...[
+                        Builder(
+                          builder: (context) {
+                            final planetFile =
+                                BkCreditCalcDesktopService.activeFileNameFromConfig(
+                              firestoreConfig,
+                            );
+                            if (planetFile == null) {
+                              return const SizedBox.shrink();
+                            }
+                            final isSetup = planetFile
+                                .toLowerCase()
+                                .contains('-setup.exe');
+                            return Container(
+                              width: double.infinity,
+                              margin: const EdgeInsets.only(bottom: 12),
+                              padding: const EdgeInsets.all(12),
+                              decoration: BoxDecoration(
+                                color: isSetup
+                                    ? Colors.green.shade50
+                                    : Colors.orange.shade50,
+                                borderRadius: BorderRadius.circular(8),
+                                border: Border.all(
+                                  color: isSetup
+                                      ? Colors.green.shade200
+                                      : Colors.orange.shade200,
+                                ),
+                              ),
+                              child: Text(
+                                isSetup
+                                    ? 'Planet scarica ora: $planetFile'
+                                    : 'ATTENZIONE — Planet scarica ancora lo ZIP:\n$planetFile\n'
+                                        'Clicca Usa su CreditCalc-*-Setup.exe qui sotto.',
+                                style: TextStyle(
+                                  fontSize: 13,
+                                  height: 1.4,
+                                  color: isSetup
+                                      ? Colors.green.shade900
+                                      : Colors.orange.shade900,
+                                  fontWeight: isSetup
+                                      ? FontWeight.w500
+                                      : FontWeight.w600,
+                                ),
+                              ),
+                            );
+                          },
+                        ),
+                      ],
                       FutureBuilder<List<DesktopReleaseZip>>(
                         key: ValueKey(_releasesRefreshKey),
                         future: BkCreditCalcDesktopService.listReleaseZips(),
