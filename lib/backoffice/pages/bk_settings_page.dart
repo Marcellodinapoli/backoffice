@@ -2,7 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 
 class BkSettingsPage extends StatefulWidget {
-  const BkSettingsPage({Key? key}) : super(key: key);
+  const BkSettingsPage({super.key});
 
   @override
   State<BkSettingsPage> createState() => _BkSettingsPageState();
@@ -257,9 +257,9 @@ class _BkSettingsPageState extends State<BkSettingsPage> {
 
         const SizedBox(height: 12),
         const Divider(),
-        Card(
-          color: const Color(0xFFF5F5F5),
-          child: const ListTile(
+        const Card(
+          color: Color(0xFFF5F5F5),
+          child: ListTile(
             title: Text('Versione applicazione'),
             subtitle: Text('-'),
           ),

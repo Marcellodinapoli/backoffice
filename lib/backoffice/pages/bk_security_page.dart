@@ -93,9 +93,9 @@ class BkSecurityPage extends StatelessWidget {
                     .collection('users')
                     .where('status', isEqualTo: 'blocked')
                     .get(),
-              ]).catchError((e) {
-                print("Errore sicurezza: $e");
-                return [null, null];
+              ]).catchError((Object e) {
+                debugPrint("Errore sicurezza: $e");
+                return <QuerySnapshot<Map<String, dynamic>>>[];
               }),
               builder: (context, AsyncSnapshot snap) {
 
@@ -118,7 +118,7 @@ class BkSecurityPage extends StatelessWidget {
                         (snap.data[1] as QuerySnapshot).docs.length;
                   }
                 } catch (e) {
-                  print("Parse error: $e");
+                  debugPrint("Parse error: $e");
                 }
 
                 final items = [
@@ -289,7 +289,7 @@ class _SecurityCard extends StatelessWidget {
         color: Colors.white,
         borderRadius: BorderRadius.circular(14),
         border:
-        Border.all(color: statusColor.withOpacity(0.4)),
+        Border.all(color: statusColor.withValues(alpha: 0.4)),
         boxShadow: const [
           BoxShadow(
             color: Color(0x14000000),
@@ -327,7 +327,7 @@ Widget _statusBanner(String text, Color color) {
     width: double.infinity,
     padding: const EdgeInsets.all(20),
     decoration: BoxDecoration(
-      color: color.withOpacity(0.1),
+      color: color.withValues(alpha: 0.1),
       borderRadius: BorderRadius.circular(14),
       border: Border.all(color: color),
     ),

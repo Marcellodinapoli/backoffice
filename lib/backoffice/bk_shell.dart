@@ -158,7 +158,7 @@ class _BackOfficeShellState extends State<BackOfficeShell> {
           Container(
             width: 1,
             height: 20,
-            color: Colors.white.withOpacity(0.5),
+            color: Colors.white.withValues(alpha: 0.5),
           ),
           const SizedBox(width: 12),
           Text(
@@ -193,24 +193,6 @@ class _BackOfficeShellState extends State<BackOfficeShell> {
   }
 
   // ---------------------------------------------------------------------------
-  // UI - CONTENT
-  // ---------------------------------------------------------------------------
-  Widget _buildContent(Widget page) {
-    return Expanded(
-      child: Center(
-        child: ConstrainedBox(
-          constraints:
-          const BoxConstraints(maxWidth: 1300),
-          child: Padding(
-            padding: const EdgeInsets.all(32),
-            child: page,
-          ),
-        ),
-      ),
-    );
-  }
-
-  // ---------------------------------------------------------------------------
   // UI - MENU
   // ---------------------------------------------------------------------------
   Widget _buildSideMenu(int safeIndex) {
@@ -235,7 +217,7 @@ class _BackOfficeShellState extends State<BackOfficeShell> {
               decoration: BoxDecoration(
                 color: isSelected
                     ? const Color(0xFF1565C0)
-                    .withOpacity(0.08)
+                    .withValues(alpha: 0.08)
                     : Colors.transparent,
                 border: Border(
                   left: BorderSide(

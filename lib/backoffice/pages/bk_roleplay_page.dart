@@ -184,7 +184,7 @@
                             ],
                           ),
                         );
-                      }).toList(),
+                      }),
 
                       Align(
                         alignment: Alignment.centerLeft,
@@ -241,7 +241,7 @@
                                 "practiceData": formattedPracticeData,
                               });
 
-                              if (!mounted) return;
+                              if (!context.mounted) return;
                               Navigator.pop(context);
                               ScaffoldMessenger.of(context).showSnackBar(
                                 const SnackBar(
@@ -395,7 +395,7 @@
                             ],
                           ),
                         );
-                      }).toList(),
+                      }),
 
                       Align(
                         alignment: Alignment.centerLeft,
@@ -440,7 +440,7 @@
 
                                 final user = FirebaseAuth.instance.currentUser;
                                 final token = await user?.getIdTokenResult(true);
-                                print("CLAIMS: ${token?.claims}");
+                                debugPrint("CLAIMS: ${token?.claims}");
 
                                 final formattedPracticeData = practiceData
                                     .where((row) =>
@@ -462,9 +462,10 @@
                                   "date": DateTime.now().toIso8601String(),
                                 });
 
-                                if (!mounted) return;
+                                if (!dialogContext.mounted) return;
                                 Navigator.of(dialogContext, rootNavigator: true).pop();
 
+                                if (!mounted) return;
                                 ScaffoldMessenger.of(context).showSnackBar(
                                   const SnackBar(
                                     content: Text("✅ Simulazione salvata"),
@@ -472,8 +473,9 @@
                                 );
 
                               } catch (e) {
-                                print("ERRORE FIRESTORE: $e");
+                                debugPrint("ERRORE FIRESTORE: $e");
 
+                                if (!mounted) return;
                                 ScaffoldMessenger.of(context).showSnackBar(
                                   SnackBar(
                                     content: Text("❌ Errore: $e"),
@@ -662,13 +664,13 @@
                   Row(
                     mainAxisAlignment: MainAxisAlignment.spaceBetween,
                     children: [
-                      Expanded(
+                      const Expanded(
                         child: TabBar(
                           isScrollable: true,
                           labelColor: Colors.black,
                           unselectedLabelColor: Colors.grey,
-                          indicatorColor: const Color(0xFF1565C0),
-                          tabs: const [
+                          indicatorColor: Color(0xFF1565C0),
+                          tabs: [
                             Tab(text: "Sollecito"),
                             Tab(text: "Recupero"),
                           ],
@@ -772,7 +774,7 @@
                                               ),
                                             ),
                                           );
-                                        }).toList(),
+                                        }),
 
                                       const SizedBox(height: 4),
                                       const Text(
@@ -783,11 +785,11 @@
                                   ),
                                   trailing: PopupMenuButton<String>(
                                     onSelected: (value) {
-                                      if (value == "edit")
+                                      if (value == "edit") {
                                         _editRoleplayDialog(d);
-                                      if (value == "delete")
+                                      } else if (value == "delete") {
                                         _removeRoleplay(d.id);
-                                      if (value == "prompt") {
+                                      } else if (value == "prompt") {
                                         _showPromptDialog(
                                             d.id, title, prompt);
                                       }
@@ -893,7 +895,7 @@
                                               ),
                                             ),
                                           );
-                                        }).toList(),
+                                        }),
 
                                       const SizedBox(height: 4),
                                       const Text(
@@ -904,11 +906,11 @@
                                   ),
                                   trailing: PopupMenuButton<String>(
                                     onSelected: (value) {
-                                      if (value == "edit")
+                                      if (value == "edit") {
                                         _editRoleplayDialog(d);
-                                      if (value == "delete")
+                                      } else if (value == "delete") {
                                         _removeRoleplay(d.id);
-                                      if (value == "prompt") {
+                                      } else if (value == "prompt") {
                                         _showPromptDialog(
                                             d.id, title, prompt);
                                       }
@@ -942,40 +944,6 @@
             ),
           ),
         ),
-      );
-    }}
-  // ============================================================
-  // MODEL
-  // ============================================================
-
-  class _RoleplayItem {
-    final String title;
-    final String category;
-    final String audioUrl;
-    final String? prompt;
-    final DateTime date;
-
-    _RoleplayItem({
-      required this.title,
-      required this.category,
-      required this.audioUrl,
-      this.prompt,
-      required this.date,
-    });
-
-    _RoleplayItem copyWith({
-      String? title,
-      String? category,
-      String? audioUrl,
-      String? prompt,
-      DateTime? date,
-    }) {
-      return _RoleplayItem(
-        title: title ?? this.title,
-        category: category ?? this.category,
-        audioUrl: audioUrl ?? this.audioUrl,
-        prompt: prompt ?? this.prompt,
-        date: date ?? this.date,
       );
     }
   }

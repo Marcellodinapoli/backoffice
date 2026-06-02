@@ -98,6 +98,7 @@ class BkCompanyDetailsPage extends StatelessWidget {
 
               await batch.commit();
 
+              if (!context.mounted) return;
               Navigator.pop(context);
             },
             child: const Text("Conferma"),

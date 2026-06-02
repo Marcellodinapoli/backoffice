@@ -5,8 +5,6 @@ import 'package:flutter/material.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:file_picker/file_picker.dart';
 import 'package:firebase_storage/firebase_storage.dart';
-import 'package:url_launcher/url_launcher.dart';
-import 'package:firebase_auth/firebase_auth.dart';
 import 'package:excel/excel.dart' as ex;
 
 import '../../main.dart';
@@ -295,6 +293,7 @@ class _BkCoursesPageState extends State<BkCoursesPage> {
                           };
                         });
 
+                        if (!context.mounted) return;
                         ScaffoldMessenger.of(context).showSnackBar(
                           const SnackBar(
                               content: Text("✅ Quiz caricato")),
@@ -347,7 +346,7 @@ class _BkCoursesPageState extends State<BkCoursesPage> {
                               FieldValue.serverTimestamp(),
                             });
 
-                            if (!mounted) return;
+                            if (!context.mounted) return;
                             Navigator.pop(context);
                           },
                           child: const Text("Salva"),
@@ -750,6 +749,7 @@ class _BkCoursesPageState extends State<BkCoursesPage> {
                           };
                         });
 
+                        if (!context.mounted) return;
                         ScaffoldMessenger.of(context).showSnackBar(
                           const SnackBar(
                               content: Text("Quiz aggiornato")),
@@ -825,7 +825,7 @@ class _BkCoursesPageState extends State<BkCoursesPage> {
                               'quiz': quizData,
                             });
 
-                            if (!mounted) return;
+                            if (!context.mounted) return;
                             Navigator.pop(context);
                           },
                           child: const Text("Salva"),
@@ -863,13 +863,13 @@ class _BkCoursesPageState extends State<BkCoursesPage> {
             Row(
               mainAxisAlignment: MainAxisAlignment.spaceBetween,
               children: [
-                Expanded(
+                const Expanded(
                   child: TabBar(
                     isScrollable: true,
                     labelColor: Colors.black,
                     unselectedLabelColor: Colors.grey,
-                    indicatorColor: const Color(0xFF1565C0),
-                    tabs: const [
+                    indicatorColor: Color(0xFF1565C0),
+                    tabs: [
                       Tab(text: "Sollecito"),
                       Tab(text: "Recupero"),
                     ],

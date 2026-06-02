@@ -269,9 +269,7 @@ class _BkJobRulesPageState extends State<BkJobRulesPage> {
                       child: ListTile(
                         title: Text("Versione $version"),
                         subtitle: Text(
-                          text.length > 180
-                              ? "${text.substring(0,180)}..."
-                              : text,
+                          '$date\n${text.length > 180 ? "${text.substring(0, 180)}..." : text}',
                         ),
                         trailing: TextButton(
                           onPressed: () =>

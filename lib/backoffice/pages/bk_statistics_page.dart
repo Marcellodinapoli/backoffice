@@ -2,7 +2,7 @@
 import 'package:flutter/material.dart';
 
 class BkStatisticsPage extends StatelessWidget {
-  const BkStatisticsPage({Key? key}) : super(key: key);
+  const BkStatisticsPage({super.key});
 
   @override
   Widget build(BuildContext context) {
@@ -61,7 +61,7 @@ class _StatCard extends StatelessWidget {
       color: const Color(0xFFF5F5F5),
       child: ListTile(
         leading: CircleAvatar(
-          backgroundColor: color.withOpacity(0.1),
+          backgroundColor: color.withValues(alpha: 0.1),
           child: Icon(icon, color: color),
         ),
         title: Text(title, style: const TextStyle(fontWeight: FontWeight.bold)),

@@ -2,7 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 
 class BkAnnouncementsPage extends StatefulWidget {
-  const BkAnnouncementsPage({Key? key}) : super(key: key);
+  const BkAnnouncementsPage({super.key});
 
   @override
   State<BkAnnouncementsPage> createState() => _BkAnnouncementsPageState();
@@ -21,8 +21,6 @@ class _BkAnnouncementsPageState extends State<BkAnnouncementsPage> {
     'company',
   ];
 
-  final List<int> _priorities = [1, 2, 3, 4];
-
 // ---------------------------------------------------------------------------
 // STATE
 // ---------------------------------------------------------------------------
@@ -31,7 +29,6 @@ class _BkAnnouncementsPageState extends State<BkAnnouncementsPage> {
   final TextEditingController _contentController = TextEditingController();
 
   String _selectedTarget = 'all';
-  int _selectedPriority = 2;
 
 // 🔥 AGGIUNTO tipo annuncio
   String _selectedType = 'avviso';
@@ -46,52 +43,6 @@ class _BkAnnouncementsPageState extends State<BkAnnouncementsPage> {
   // ---------------------------------------------------------------------------
 // SERVICES
 // ---------------------------------------------------------------------------
-
-  Future<void> _addAnnouncement() async {
-    if (_titleController.text.trim().isEmpty ||
-        _contentController.text.trim().isEmpty) {
-      return;
-    }
-
-    await FirebaseFirestore.instance.collection('announcements').add({
-      'title': _titleController.text.trim(),
-      'message': _contentController.text.trim(),
-      'target': _selectedTarget,
-      'priority': _selectedPriority,
-      'type': _selectedType, // 🔥 aggiunto
-      'active': _active,
-      'createdAt': FieldValue.serverTimestamp(),
-      'expiresAt': _expiresAt,
-    });
-
-    _resetForm();
-
-    if (mounted) Navigator.pop(context);
-  }
-
-  Future<void> _updateAnnouncement(String id) async {
-    if (_titleController.text.trim().isEmpty ||
-        _contentController.text.trim().isEmpty) {
-      return;
-    }
-
-    await FirebaseFirestore.instance
-        .collection('announcements')
-        .doc(id)
-        .update({
-      'title': _titleController.text.trim(),
-      'message': _contentController.text.trim(),
-      'target': _selectedTarget,
-      'priority': _selectedPriority,
-      'type': _selectedType, // 🔥 aggiunto
-      'active': _active,
-      'expiresAt': _expiresAt,
-    });
-
-    _resetForm();
-
-    if (mounted) Navigator.pop(context);
-  }
 
   Future<void> _deleteAnnouncement(String id) async {
     await FirebaseFirestore.instance
@@ -111,7 +62,6 @@ class _BkAnnouncementsPageState extends State<BkAnnouncementsPage> {
     _titleController.clear();
     _contentController.clear();
     _selectedTarget = 'all';
-    _selectedPriority = 2;
     _selectedType = 'avviso'; // 🔥 aggiunto
     _active = true;
     _expiresAt = null;
@@ -145,9 +95,7 @@ class _BkAnnouncementsPageState extends State<BkAnnouncementsPage> {
           : 'avviso';
 
       _active = existingData['active'] ?? true;
-      _expiresAt = existingData['expiresAt'] != null
-          ? existingData['expiresAt'].toDate()
-          : null;
+      _expiresAt = existingData['expiresAt']?.toDate();
     } else {
       _editingId = null;
       _resetForm();
@@ -337,7 +285,7 @@ class _BkAnnouncementsPageState extends State<BkAnnouncementsPage> {
                               });
                             }
 
-                            if (!mounted) return;
+                            if (!dialogContext.mounted) return;
                             Navigator.pop(dialogContext);
                           },
                           child: Text(

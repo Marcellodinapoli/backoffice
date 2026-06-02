@@ -1,9 +1,11 @@
+import 'dart:convert';
+
 import 'package:flutter/material.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:excel/excel.dart';
-import 'dart:html' as html;
 import 'package:pdf/widgets.dart' as pw;
-import 'dart:convert'; // ✅ AGGIUNTO
+
+import '../utils/bk_file_download.dart';
 
 class BkExportPage extends StatelessWidget {
   const BkExportPage({super.key});
@@ -46,20 +48,9 @@ class BkExportPage extends StatelessWidget {
     );
   }
 
-  void _downloadFile(String fileName, List<int> bytes) {
-    final blob = html.Blob([bytes]);
-    final url = html.Url.createObjectUrlFromBlob(blob);
-
-    html.AnchorElement(href: url)
-      ..setAttribute("download", fileName)
-      ..click();
-
-    html.Url.revokeObjectUrl(url);
-  }
-
   void _downloadExcel(String fileName, Excel excel) {
     final bytes = excel.encode();
-    _downloadFile(fileName, bytes!);
+    bkDownloadBytes(fileName, bytes!);
   }
 
   void _handleExport(BuildContext context, String type) async {
@@ -123,7 +114,7 @@ class BkExportPage extends StatelessWidget {
         pdf.addPage(
           pw.Page(
             build: (context) {
-              return pw.Table.fromTextArray(
+              return pw.TableHelper.fromTextArray(
                 headers: keys,
                 data: data.map((row) {
                   return keys.map((k) => _cleanValue(row[k])).toList();
@@ -135,14 +126,14 @@ class BkExportPage extends StatelessWidget {
       }
 
       final bytes = await pdf.save();
-      _downloadFile("$type.pdf", bytes);
+      bkDownloadBytes("$type.pdf", bytes);
     }
 
     // ---------------- WORD ----------------
     else if (format == "WORD") {
 
       if (data.isEmpty) {
-        _downloadFile("$type.doc", utf8.encode("Nessun dato")); // ✅ FIX
+        bkDownloadBytes("$type.doc", utf8.encode("Nessun dato"));
       } else {
 
         final keys = data.first.keys.where((k) {
@@ -150,16 +141,18 @@ class BkExportPage extends StatelessWidget {
           return v is String || v is num || v is bool || v is Timestamp;
         }).toList();
 
-        String content = keys.join("\t") + "\n";
+        final buffer = StringBuffer(keys.join('\t'));
+        buffer.writeln();
 
         for (var row in data) {
-          content += keys.map((k) => _cleanValue(row[k])).join("\t") + "\n";
+          buffer.writeln(keys.map((k) => _cleanValue(row[k])).join('\t'));
         }
 
-        _downloadFile("$type.doc", utf8.encode(content)); // ✅ FIX
+        bkDownloadBytes("$type.doc", utf8.encode(buffer.toString()));
       }
     }
 
+    if (!context.mounted) return;
     ScaffoldMessenger.of(context).showSnackBar(
       SnackBar(content: Text('Export $type completato ($format)')),
     );

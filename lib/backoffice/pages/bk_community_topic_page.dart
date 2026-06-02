@@ -1,10 +1,10 @@
 // ================================================================
 // IMPORT
 // ================================================================
-import 'dart:html' as html;
 import 'package:flutter/material.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
+import '../utils/bk_local_storage.dart';
 import '../widgets/bk_impaginazione_secondaria.dart';
 
 // ================================================================
@@ -51,16 +51,18 @@ class _CommunityTopicPageState extends State<CommunityTopicPage> {
   // SERVICES / HELPERS (LOCAL STORAGE)
   // ================================================================
   void _loadLastSeen() {
-    final stored = html.window.localStorage['lastSeen'];
+    final stored = bkLocalStorageGet('lastSeen');
     if (stored != null) {
       _lastSeen = int.tryParse(stored) ?? 0;
     }
-    html.window.localStorage['lastSeen'] =
-        DateTime.now().millisecondsSinceEpoch.toString();
+    bkLocalStorageSet(
+      'lastSeen',
+      DateTime.now().millisecondsSinceEpoch.toString(),
+    );
   }
 
   void _loadSeenMessages() {
-    final stored = html.window.localStorage['seenCommunityMessages'];
+    final stored = bkLocalStorageGet('seenCommunityMessages');
     if (stored != null && stored.isNotEmpty) {
       _seenMessages = stored.split(',').toSet();
     }
@@ -68,8 +70,7 @@ class _CommunityTopicPageState extends State<CommunityTopicPage> {
 
   void _saveSeenMessage(String id) {
     _seenMessages.add(id);
-    html.window.localStorage['seenCommunityMessages'] =
-        _seenMessages.join(',');
+    bkLocalStorageSet('seenCommunityMessages', _seenMessages.join(','));
   }
 
   // ================================================================
@@ -96,77 +97,6 @@ class _CommunityTopicPageState extends State<CommunityTopicPage> {
     setState(() => replyingTo = null);
   }
 
-  void _editMessage(String msgId, String currentText) {
-    final ctrl = TextEditingController(text: currentText);
-
-    showDialog(
-      context: context,
-      builder: (_) => AlertDialog(
-        title: const Text("Modifica messaggio"),
-        content: TextField(
-          controller: ctrl,
-          decoration: const InputDecoration(labelText: "Testo"),
-        ),
-        actions: [
-          TextButton(
-              onPressed: () => Navigator.pop(context),
-              child: const Text("Annulla")),
-          ElevatedButton(
-            onPressed: () async {
-              await FirebaseFirestore.instance
-                  .collection('community')
-                  .doc(widget.topicId)
-                  .collection('messages')
-                  .doc(msgId)
-                  .update({'text': ctrl.text.trim()});
-              if (mounted) Navigator.pop(context);
-            },
-            child: const Text("Salva"),
-          ),
-        ],
-      ),
-    );
-  }
-
-  Future<void> _deleteMessage(String msgId) async {
-    final confirm = await showDialog<bool>(
-      context: context,
-      builder: (_) => AlertDialog(
-        title: const Text("Elimina messaggio"),
-        content:
-        const Text("Vuoi davvero eliminare questo messaggio?"),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(context, false),
-            child: const Text("Annulla"),
-          ),
-          ElevatedButton(
-            style: ElevatedButton.styleFrom(
-                backgroundColor: Colors.red),
-            onPressed: () => Navigator.pop(context, true),
-            child: const Text("Elimina"),
-          ),
-        ],
-      ),
-    );
-
-    if (confirm == true) {
-      await FirebaseFirestore.instance
-          .collection('community')
-          .doc(widget.topicId)
-          .collection('messages')
-          .doc(msgId)
-          .delete();
-
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(
-              content: Text("🗑️ Messaggio eliminato")),
-        );
-      }
-    }
-  }
-
   // ================================================================
   // UI HELPERS
   // ================================================================
@@ -181,7 +111,7 @@ class _CommunityTopicPageState extends State<CommunityTopicPage> {
     final replyTo = data['replyTo'];
     final userId = data['userId'];
     final ts = data['timestamp'] as Timestamp?;
-    final time = ts != null ? ts.toDate() : null;
+    final time = ts?.toDate();
     final isMine = userId == user?.uid;
 
     final isNew = !_seenMessages.contains(msgId) &&

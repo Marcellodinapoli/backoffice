@@ -121,7 +121,7 @@ class _BkCommunityPageState extends State<BkCommunityPage> {
                     'timestamp': FieldValue.serverTimestamp(),
                   });
 
-                  if (!mounted) return;
+                  if (!context.mounted) return;
                   Navigator.pop(context);
 
                   ScaffoldMessenger.of(context).showSnackBar(
@@ -135,6 +135,7 @@ class _BkCommunityPageState extends State<BkCommunityPage> {
                   );
 
                 } catch (e) {
+                  if (!context.mounted) return;
                   ScaffoldMessenger.of(context).showSnackBar(
                     SnackBar(
                         content:
@@ -237,6 +238,7 @@ class _BkCommunityPageState extends State<BkCommunityPage> {
     await topic.reference
         .update({'status': approve ? 'approved' : 'rejected'});
 
+    if (!mounted) return;
     ScaffoldMessenger.of(context).showSnackBar(
       SnackBar(
         content:

@@ -12,7 +12,6 @@ import 'package:firebase_core/firebase_core.dart';
 
 import '../backoffice/bk_shell.dart';
 import '../main.dart';
-import '../firebase_options.dart';
 
 // ✅ IMPORT CONDIZIONALE (web/mobile)
 import '../debug/debug_key_listener_stub.dart'
@@ -289,7 +288,7 @@ class _FortressLoginPageState extends State<FortressLoginPage> {
           padding: const EdgeInsets.all(24),
           constraints: const BoxConstraints(maxWidth: 800),
           decoration: BoxDecoration(
-            color: Colors.blueGrey.shade800.withOpacity(0.6),
+            color: Colors.blueGrey.shade800.withValues(alpha: 0.6),
             borderRadius: BorderRadius.circular(20),
           ),
           child: _waitingConfirmation

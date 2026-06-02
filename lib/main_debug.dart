@@ -1,4 +1,6 @@
-// lib/main.dart
+// ignore_for_file: avoid_print
+
+// lib/main_debug.dart
 import 'package:flutter/material.dart';
 import 'package:firebase_core/firebase_core.dart';
 import 'firebase_options.dart';

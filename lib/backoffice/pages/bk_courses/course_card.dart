@@ -93,7 +93,7 @@ class CourseCard extends StatelessWidget {
                 "Cosa contiene:",
                 style: TextStyle(fontWeight: FontWeight.bold),
               ),
-              ...contents.map((item) => Text("• $item")).toList(),
+              ...contents.map((item) => Text("• $item")),
               const SizedBox(height: 8),
             ],
 
@@ -122,7 +122,7 @@ class CourseCard extends StatelessWidget {
                   return Text("• ${item['name']}");
                 }
                 return Text("• ${item.toString()}");
-              }).toList(),
+              }),
               const SizedBox(height: 8),
             ],
 

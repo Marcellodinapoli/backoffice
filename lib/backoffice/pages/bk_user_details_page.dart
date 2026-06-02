@@ -91,6 +91,7 @@ class _BkUserDetailsPageState extends State<BkUserDetailsPage> {
                 "blockedAt": FieldValue.serverTimestamp(),
               });
 
+              if (!context.mounted) return;
               Navigator.pop(context);
             },
             child: const Text("Conferma"),
@@ -136,6 +137,7 @@ class _BkUserDetailsPageState extends State<BkUserDetailsPage> {
                 "standbyAt": FieldValue.serverTimestamp(),
               });
 
+              if (!context.mounted) return;
               Navigator.pop(context);
             },
             child: const Text("Conferma"),

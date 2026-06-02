@@ -2,7 +2,6 @@
 import 'package:flutter/material.dart';
 import 'package:firebase_core/firebase_core.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
-import 'package:firebase_auth/firebase_auth.dart';
 
 import 'firebase_options.dart';
 
@@ -22,8 +21,8 @@ Future<void> main() async {
   );
 
   // DEBUG essenziale
-  print("✅ Firebase inizializzato");
-  print("Project ID: ${DefaultFirebaseOptions.currentPlatform.projectId}");
+  debugPrint("✅ Firebase inizializzato");
+  debugPrint("Project ID: ${DefaultFirebaseOptions.currentPlatform.projectId}");
 
   // Firestore istanza unica
   formDb = FirebaseFirestore.instance;

@@ -23,6 +23,7 @@ class _BkWindowsAppPageState extends State<BkWindowsAppPage> {
   double _uploadProgress = 0;
   bool _hydratedFromFirestore = false;
   Timestamp? _lastUpdatedAt;
+  int _releasesRefreshKey = 0;
 
   @override
   void initState() {
@@ -66,7 +67,7 @@ class _BkWindowsAppPageState extends State<BkWindowsAppPage> {
       return;
     }
     if (url.isEmpty) {
-      _snack('Carica uno ZIP o incolla URL di download.', isError: true);
+      _snack('Carica un installer .exe o incolla URL di download.', isError: true);
       return;
     }
 
@@ -88,12 +89,15 @@ class _BkWindowsAppPageState extends State<BkWindowsAppPage> {
     }
   }
 
-  Future<void> _uploadZip() async {
+  Future<void> _uploadPackage() async {
     final version = _versionCtrl.text.trim();
     if (version.isEmpty) {
       _snack('Inserisci la versione prima di caricare.', isError: true);
       return;
     }
+
+    final notes = _notesCtrl.text;
+    final enabled = _enabled;
 
     setState(() {
       _uploading = true;
@@ -101,16 +105,26 @@ class _BkWindowsAppPageState extends State<BkWindowsAppPage> {
     });
 
     try {
-      final url = await BkCreditCalcDesktopService.uploadReleaseZip(
+      final url = await BkCreditCalcDesktopService.uploadReleasePackage(
         version: version,
         onProgress: (p) {
           if (mounted) setState(() => _uploadProgress = p);
         },
       );
-      _urlCtrl.text = url;
-      await _saveConfig(showSnack: false);
+      await BkCreditCalcDesktopService.saveConfig(
+        enabled: enabled,
+        version: version,
+        windowsDownloadUrl: url,
+        releaseNotes: notes,
+      );
       if (mounted) {
-        _snack('ZIP caricato e configurazione aggiornata.');
+        setState(() {
+          _releasesRefreshKey++;
+          _versionCtrl.clear();
+          _notesCtrl.clear();
+          _urlCtrl.clear();
+        });
+        _snack('Release v$version attiva su Planet.');
       }
     } catch (e) {
       if (mounted) _snack('Upload fallito: $e', isError: true);
@@ -121,6 +135,62 @@ class _BkWindowsAppPageState extends State<BkWindowsAppPage> {
           _uploadProgress = 0;
         });
       }
+    }
+  }
+
+  Future<void> _activateRelease(DesktopReleaseZip zip) async {
+    final version = BkCreditCalcDesktopService.versionFromZipName(zip.name);
+    if (version == null) {
+      _snack('Nome file non riconosciuto: ${zip.name}', isError: true);
+      return;
+    }
+
+    setState(() => _loading = true);
+    try {
+      await BkCreditCalcDesktopService.saveConfig(
+        enabled: _enabled,
+        version: version,
+        windowsDownloadUrl: zip.downloadUrl,
+        releaseNotes: _notesCtrl.text,
+      );
+      if (mounted) {
+        setState(() {
+          _releasesRefreshKey++;
+          _versionCtrl.clear();
+          _notesCtrl.clear();
+          _urlCtrl.clear();
+        });
+        _snack('Release attiva su Planet: ${zip.name}');
+      }
+    } catch (e) {
+      if (mounted) _snack('Attivazione fallita: $e', isError: true);
+    } finally {
+      if (mounted) setState(() => _loading = false);
+    }
+  }
+
+  bool _isActiveRelease(DesktopReleaseZip zip, Map<String, dynamic>? config) {
+    if (config == null) return false;
+    final activeUrl = (config['windowsDownloadUrl'] ?? '').toString().trim();
+    if (activeUrl.isNotEmpty && zip.downloadUrl == activeUrl) return true;
+
+    final activeVer = (config['version'] ?? '').toString().trim();
+    final ver = BkCreditCalcDesktopService.versionFromZipName(zip.name);
+    if (ver == null || ver != activeVer) return false;
+
+    final wantsSetup = activeUrl.toLowerCase().contains('-setup.exe');
+    final isSetup =
+        BkCreditCalcDesktopService.isInstallerFileName(zip.name);
+    return wantsSetup ? isSetup : zip.name.toLowerCase().endsWith('.zip');
+  }
+
+  String? _expectedSetupName() {
+    final v = _versionCtrl.text.trim();
+    if (v.isEmpty) return null;
+    try {
+      return BkCreditCalcDesktopService.setupObjectName(v);
+    } catch (_) {
+      return null;
     }
   }
 
@@ -156,6 +226,8 @@ class _BkWindowsAppPageState extends State<BkWindowsAppPage> {
           _lastUpdatedAt = snap.data!.data()?['updatedAt'] as Timestamp?;
         }
 
+        final firestoreConfig = snap.data?.data();
+
         return SingleChildScrollView(
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.stretch,
@@ -190,14 +262,29 @@ class _BkWindowsAppPageState extends State<BkWindowsAppPage> {
                       const SizedBox(height: 16),
                       TextField(
                         controller: _versionCtrl,
-                        decoration: const InputDecoration(
+                        onChanged: (_) => setState(() {}),
+                        decoration: InputDecoration(
                           labelText: 'Versione release',
                           hintText: 'es. 1.0.1',
-                          border: OutlineInputBorder(),
+                          border: const OutlineInputBorder(),
                           helperText:
                               'Deve essere maggiore della versione installata dagli utenti.',
+                          suffixText: _expectedSetupName(),
                         ),
                       ),
+                      if (_expectedSetupName() != null) ...[
+                        const SizedBox(height: 8),
+                        SelectableText(
+                          'Installer atteso: ${_expectedSetupName()}\n'
+                          'Build locale: ${BkCreditCalcDesktopService.localSetupPathHint(_versionCtrl.text.trim())}\n'
+                          'ZIP fallback: ${BkCreditCalcDesktopService.localZipPathHint(_versionCtrl.text.trim())}',
+                          style: TextStyle(
+                            fontSize: 12,
+                            color: Colors.grey.shade700,
+                            fontFamily: 'Consolas',
+                          ),
+                        ),
+                      ],
                       const SizedBox(height: 16),
                       TextField(
                         controller: _notesCtrl,
@@ -212,7 +299,7 @@ class _BkWindowsAppPageState extends State<BkWindowsAppPage> {
                       TextField(
                         controller: _urlCtrl,
                         decoration: InputDecoration(
-                          labelText: 'URL download Windows (ZIP)',
+                          labelText: 'URL download Windows (Setup.exe)',
                           border: const OutlineInputBorder(),
                           suffixIcon: _urlCtrl.text.isEmpty
                               ? null
@@ -244,9 +331,10 @@ class _BkWindowsAppPageState extends State<BkWindowsAppPage> {
                         runSpacing: 12,
                         children: [
                           FilledButton.icon(
-                            onPressed: _uploading || _loading ? null : _uploadZip,
-                            icon: const Icon(Icons.upload_file),
-                            label: const Text('Carica ZIP su Firebase'),
+                            onPressed:
+                                _uploading || _loading ? null : _uploadPackage,
+                            icon: const Icon(Icons.install_desktop),
+                            label: const Text('Carica installer su Firebase'),
                           ),
                           OutlinedButton.icon(
                             onPressed: _uploading || _loading
@@ -284,6 +372,153 @@ class _BkWindowsAppPageState extends State<BkWindowsAppPage> {
               ),
               const SizedBox(height: 24),
               Card(
+                child: Padding(
+                  padding: const EdgeInsets.all(20),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.stretch,
+                    children: [
+                      Row(
+                        children: [
+                          const Expanded(
+                            child: Text(
+                              'Installer / ZIP su Storage',
+                              style: TextStyle(
+                                fontWeight: FontWeight.bold,
+                                fontSize: 16,
+                              ),
+                            ),
+                          ),
+                          IconButton(
+                            tooltip: 'Aggiorna elenco',
+                            onPressed: () =>
+                                setState(() => _releasesRefreshKey++),
+                            icon: const Icon(Icons.refresh),
+                          ),
+                        ],
+                      ),
+                      const SizedBox(height: 8),
+                      Text(
+                        'Cartella: ${BkCreditCalcDesktopService.storageFolder}/',
+                        style: TextStyle(
+                          fontSize: 12,
+                          color: Colors.grey.shade700,
+                          fontFamily: 'Consolas',
+                        ),
+                      ),
+                      const SizedBox(height: 12),
+                      FutureBuilder<List<DesktopReleaseZip>>(
+                        key: ValueKey(_releasesRefreshKey),
+                        future: BkCreditCalcDesktopService.listReleaseZips(),
+                        builder: (context, snap) {
+                          if (snap.connectionState ==
+                              ConnectionState.waiting) {
+                            return const Padding(
+                              padding: EdgeInsets.all(16),
+                              child: Center(
+                                child: CircularProgressIndicator(),
+                              ),
+                            );
+                          }
+                          if (snap.hasError) {
+                            return Text(
+                              'Impossibile leggere Storage: ${snap.error}',
+                              style: TextStyle(color: Colors.red.shade700),
+                            );
+                          }
+                          final zips = snap.data ?? [];
+                          if (zips.isEmpty) {
+                            return const Text(
+                              'Nessun pacchetto in Storage. Genera CreditCalc-*-Setup.exe (Inno Setup) e caricalo qui.',
+                            );
+                          }
+                          return Column(
+                            children: zips.map((zip) {
+                              final sizeMb =
+                                  (zip.sizeBytes / (1024 * 1024))
+                                      .toStringAsFixed(2);
+                              final ver = BkCreditCalcDesktopService
+                                  .versionFromZipName(zip.name);
+                              final isSetup = BkCreditCalcDesktopService
+                                  .isInstallerFileName(zip.name);
+                              final isActive =
+                                  _isActiveRelease(zip, firestoreConfig);
+                              return ListTile(
+                                contentPadding: EdgeInsets.zero,
+                                leading: Icon(
+                                  isSetup
+                                      ? Icons.install_desktop
+                                      : Icons.folder_zip,
+                                  size: 22,
+                                  color: isActive ? Colors.green.shade700 : null,
+                                ),
+                                title: Row(
+                                  children: [
+                                    Expanded(child: Text(zip.name)),
+                                    if (isActive)
+                                      Container(
+                                        margin: const EdgeInsets.only(left: 8),
+                                        padding: const EdgeInsets.symmetric(
+                                          horizontal: 8,
+                                          vertical: 2,
+                                        ),
+                                        decoration: BoxDecoration(
+                                          color: Colors.green.shade100,
+                                          borderRadius:
+                                              BorderRadius.circular(8),
+                                        ),
+                                        child: Text(
+                                          'ATTIVA',
+                                          style: TextStyle(
+                                            fontSize: 10,
+                                            fontWeight: FontWeight.bold,
+                                            color: Colors.green.shade800,
+                                          ),
+                                        ),
+                                      ),
+                                  ],
+                                ),
+                                subtitle: Text(
+                                  '${ver ?? "?"} · $sizeMb MB · '
+                                  '${_formatTimestamp(zip.updated)}',
+                                ),
+                                trailing: Wrap(
+                                  spacing: 4,
+                                  children: [
+                                    IconButton(
+                                      tooltip: 'Copia URL',
+                                      icon: const Icon(Icons.copy, size: 20),
+                                      onPressed: () {
+                                        Clipboard.setData(
+                                          ClipboardData(
+                                            text: zip.downloadUrl,
+                                          ),
+                                        );
+                                        _snack('URL copiato.');
+                                      },
+                                    ),
+                                    FilledButton.tonal(
+                                      onPressed: isActive ||
+                                              _loading ||
+                                              _uploading
+                                          ? null
+                                          : () => _activateRelease(zip),
+                                      child: Text(
+                                        isActive ? 'In uso' : 'Usa',
+                                      ),
+                                    ),
+                                  ],
+                                ),
+                              );
+                            }).toList(),
+                          );
+                        },
+                      ),
+                    ],
+                  ),
+                ),
+              ),
+              const SizedBox(height: 24),
+              Card(
                 color: Colors.blue.shade50,
                 child: Padding(
                   padding: const EdgeInsets.all(20),
@@ -299,11 +534,13 @@ class _BkWindowsAppPageState extends State<BkWindowsAppPage> {
                       ),
                       const SizedBox(height: 12),
                       const Text(
-                        '1. Nel repo creditcalc-tool esegui scripts/build_windows_release.ps1\n'
-                        '2. Ottieni dist/CreditCalc-<versione>-win64.zip\n'
-                        '3. Imposta la versione qui sopra e clicca «Carica ZIP su Firebase»\n'
-                        '4. Verifica URL e note, poi «Salva configurazione»\n'
-                        '5. Gli utenti con app più vecchia vedranno badge e banner aggiornamento',
+                        '1. Installa Inno Setup 6 (una tantum): https://jrsoftware.org/isdl.php\n'
+                        '2. Aumenta version in creditcalc-tool/credit_calc/pubspec.yaml\n'
+                        '3. Build: powershell -File scripts/build_creditcalc_zip.ps1\n'
+                        '4. Carica dist/CreditCalc-<versione>-Setup.exe su Firebase (BackOffice)\n'
+                        '5. L utente scarica il Setup.exe e segue la procedura guidata (come OBS)\n'
+                        '6. Aggiornamento: stesso Setup.exe con versione maggiore (sostituisce l installazione)\n'
+                        '7. ZIP in dist/ resta solo come fallback manuale',
                         style: TextStyle(fontSize: 14, height: 1.5),
                       ),
                       const SizedBox(height: 12),
@@ -340,6 +577,13 @@ class _BkWindowsAppPageState extends State<BkWindowsAppPage> {
           '${d.month.toString().padLeft(2, '0')}/'
           '${d.year} ${d.hour}:${d.minute.toString().padLeft(2, '0')}';
     }
+    if (value is DateTime) {
+      final d = value;
+      return '${d.day.toString().padLeft(2, '0')}/'
+          '${d.month.toString().padLeft(2, '0')}/'
+          '${d.year} ${d.hour}:${d.minute.toString().padLeft(2, '0')}';
+    }
+    if (value == null) return '—';
     return value.toString();
   }
 }

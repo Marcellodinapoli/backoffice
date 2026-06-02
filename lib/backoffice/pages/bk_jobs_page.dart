@@ -140,8 +140,7 @@ class _BkJobsPageState extends State<BkJobsPage> {
               createdTs != null ? _formatDate(createdTs.toDate()) : '';
 
               final Timestamp? expiryTs = data['expiryDate'];
-              final DateTime? expiryDateRaw =
-              expiryTs != null ? expiryTs.toDate() : null;
+              final DateTime? expiryDateRaw = expiryTs?.toDate();
 
               final String expiryDate =
               expiryDateRaw != null ? _formatDate(expiryDateRaw) : '';

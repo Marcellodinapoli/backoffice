@@ -1,10 +1,11 @@
 // ================================================================
 // IMPORT
 // ================================================================
-import 'dart:html' as html;
 import 'package:flutter/material.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
+
+import '../utils/bk_local_storage.dart';
 
 // ================================================================
 // PAGE ROOT
@@ -22,42 +23,23 @@ class BkSupportPage extends StatefulWidget {
 class _BkSupportPageState extends State<BkSupportPage> {
   final user = FirebaseAuth.instance.currentUser;
 
-  Set<String> _seenTickets = {};
-  int _lastSeen = 0;
-
   // ================================================================
   // LIFECYCLE
   // ================================================================
   @override
   void initState() {
     super.initState();
-    _loadLastSeen();
-    _loadSeenTickets();
+    _markSupportVisited();
   }
 
   // ================================================================
   // LOCAL STORAGE
   // ================================================================
-  void _loadLastSeen() {
-    final stored = html.window.localStorage['lastSeenSupport'];
-    if (stored != null) {
-      _lastSeen = int.tryParse(stored) ?? 0;
-    }
-    html.window.localStorage['lastSeenSupport'] =
-        DateTime.now().millisecondsSinceEpoch.toString();
-  }
-
-  void _loadSeenTickets() {
-    final stored = html.window.localStorage['seenTickets'];
-    if (stored != null && stored.isNotEmpty) {
-      _seenTickets = stored.split(',').toSet();
-    }
-  }
-
-  void _saveSeenTicket(String id) {
-    _seenTickets.add(id);
-    html.window.localStorage['seenTickets'] =
-        _seenTickets.join(',');
+  void _markSupportVisited() {
+    bkLocalStorageSet(
+      'lastSeenSupport',
+      DateTime.now().millisecondsSinceEpoch.toString(),
+    );
   }
 
 // ================================================================
@@ -134,8 +116,6 @@ class _BkSupportPageState extends State<BkSupportPage> {
 
                           final ticket =
                           tickets[index];
-                          final ticketId =
-                              ticket.id;
 
                           final subject =
                               ticket['subject'] ?? '';
@@ -447,7 +427,9 @@ class _BkSupportPageState extends State<BkSupportPage> {
                                                       if (replyCtrl
                                                           .text
                                                           .trim()
-                                                          .isEmpty) return;
+                                                          .isEmpty) {
+                                                        return;
+                                                      }
 
                                                       await ticket.reference
                                                           .collection(
