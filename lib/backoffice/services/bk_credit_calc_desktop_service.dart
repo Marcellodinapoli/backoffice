@@ -21,22 +21,9 @@ class BkCreditCalcDesktopService {
     return 'CreditCalc-$safeVersion-Setup.exe';
   }
 
-  /// ZIP di fallback (estrazione manuale).
-  static String zipObjectName(String version) {
-    final safeVersion = version.trim().replaceAll(RegExp(r'[^0-9.]'), '');
-    if (safeVersion.isEmpty) {
-      throw ArgumentError('Versione non valida.');
-    }
-    return 'CreditCalc-$safeVersion-win64.zip';
-  }
-
   /// Percorso locale dopo build con Inno Setup.
   static String localSetupPathHint(String version) =>
       'creditcalc-tool/dist/${setupObjectName(version)}';
-
-  /// Percorso locale ZIP (solo fallback).
-  static String localZipPathHint(String version) =>
-      'creditcalc-tool/dist/${zipObjectName(version)}';
 
   static DocumentReference<Map<String, dynamic>> get _doc =>
       FirebaseFirestore.instance.doc(firestorePath);
@@ -98,65 +85,77 @@ class BkCreditCalcDesktopService {
     return (config['windowsDownloadUrl'] ?? '').toString().trim();
   }
 
+  /// Estrae `1.0.2` da `CreditCalc-1.0.2-Setup.exe`.
+  static String? versionFromSetupFileName(String fileName) {
+    final match = RegExp(
+      r'CreditCalc-(\d+\.\d+\.\d+)-Setup\.exe',
+      caseSensitive: false,
+    ).firstMatch(fileName);
+    return match?.group(1);
+  }
+
   /// Carica solo l installer Setup.exe (consigliato per Planet).
-  static Future<String> uploadReleaseInstaller({
+  /// La versione viene letta dal nome file se possibile.
+  static Future<DesktopUploadResult> uploadReleaseInstaller({
     required String version,
     required void Function(double progress) onProgress,
   }) =>
-      uploadReleasePackage(
-        version: version,
-        onProgress: onProgress,
-        installerOnly: true,
-      );
+      _pickAndUploadSetupExe(version: version, onProgress: onProgress);
 
-  /// Carica installer `.exe` o ZIP su Storage.
-  static Future<String> uploadReleasePackage({
+  /// Carica solo CreditCalc-*-Setup.exe su Storage.
+  static Future<DesktopUploadResult> uploadReleasePackage({
     required String version,
     required void Function(double progress) onProgress,
-    bool installerOnly = false,
-    bool zipOnly = false,
+  }) =>
+      uploadReleaseInstaller(version: version, onProgress: onProgress);
+
+  static Future<DesktopUploadResult> _pickAndUploadSetupExe({
+    required String version,
+    required void Function(double progress) onProgress,
   }) async {
     final result = await FilePicker.platform.pickFiles(
       type: FileType.custom,
-      allowedExtensions: installerOnly
-          ? ['exe']
-          : zipOnly
-              ? ['zip']
-              : ['exe', 'zip'],
+      allowedExtensions: ['exe'],
       withData: kIsWeb,
       allowMultiple: false,
-      dialogTitle: installerOnly
-          ? 'Seleziona CreditCalc-*-Setup.exe'
-          : zipOnly
-              ? 'Seleziona CreditCalc-*-win64.zip'
-              : 'Seleziona Setup.exe o ZIP',
+      dialogTitle: 'Seleziona CreditCalc-1.0.2-Setup.exe',
     );
     if (result == null || result.files.isEmpty) {
       throw Exception('Nessun file selezionato.');
     }
 
     final file = result.files.single;
-    final pickedName = file.name.toLowerCase();
-    final isExe = pickedName.endsWith('.exe');
-    if (installerOnly && !isExe) {
+    final name = file.name.toLowerCase();
+    if (name.endsWith('.zip')) {
       throw Exception(
-        'Devi selezionare CreditCalc-$version-Setup.exe (non lo ZIP).',
+        'Hai selezionato uno ZIP. Scegli il file Setup.exe '
+        '(es. CreditCalc-1.0.2-Setup.exe).',
       );
     }
-    if (zipOnly && !pickedName.endsWith('.zip')) {
-      throw Exception('Seleziona un file .zip.');
-    }
-    if (!isExe && !pickedName.endsWith('.zip')) {
-      throw Exception('Seleziona CreditCalc-*-Setup.exe o un file .zip.');
+    if (!name.endsWith('.exe') || !name.contains('-setup')) {
+      throw Exception(
+        'Seleziona CreditCalc-X.Y.Z-Setup.exe dalla cartella dist.',
+      );
     }
 
-    final objectName = isExe ? setupObjectName(version) : zipObjectName(version);
+    final fromFile = versionFromSetupFileName(file.name);
+    final resolvedVersion = (fromFile ?? version.trim());
+    if (resolvedVersion.isEmpty) {
+      throw Exception(
+        'Inserisci la versione (es. 1.0.2) o usa un file CreditCalc-1.0.2-Setup.exe.',
+      );
+    }
 
-    return _uploadFileToStorage(
+    final url = await _uploadFileToStorage(
       file: file,
-      storagePath: '$storageFolder/$objectName',
-      contentType: isExe ? 'application/octet-stream' : 'application/zip',
+      storagePath: '$storageFolder/${setupObjectName(resolvedVersion)}',
+      contentType: 'application/octet-stream',
       onProgress: onProgress,
+    );
+    return DesktopUploadResult(
+      downloadUrl: url,
+      version: resolvedVersion,
+      fileName: setupObjectName(resolvedVersion),
     );
   }
 
@@ -210,14 +209,14 @@ class BkCreditCalcDesktopService {
     return snapshot.ref.getDownloadURL();
   }
 
-  /// Carica lo ZIP su Storage (legacy).
-  static Future<String> uploadReleaseZip({
+  /// Carica Setup.exe (alias legacy uploadReleaseZip).
+  static Future<DesktopUploadResult> uploadReleaseZip({
     required String version,
     required void Function(double progress) onProgress,
   }) =>
       uploadReleasePackage(version: version, onProgress: onProgress);
 
-  /// Elenco installer e ZIP su Storage (`downloads/credit_calc/`).
+  /// Elenco installer Setup.exe su Storage (`downloads/credit_calc/`).
   static Future<List<DesktopReleaseZip>> listReleaseZips() async {
     final ref = FirebaseStorage.instance.ref(storageFolder);
     final list = await ref.listAll();
@@ -225,7 +224,7 @@ class BkCreditCalcDesktopService {
 
     for (final item in list.items) {
       final lower = item.name.toLowerCase();
-      if (!lower.endsWith('.zip') && !lower.endsWith('.exe')) continue;
+      if (!lower.endsWith('.exe')) continue;
       final meta = await item.getMetadata();
       items.add(
         DesktopReleaseZip(
@@ -260,6 +259,18 @@ class BkCreditCalcDesktopService {
 
   static bool isInstallerFileName(String fileName) =>
       fileName.toLowerCase().endsWith('.exe');
+}
+
+class DesktopUploadResult {
+  final String downloadUrl;
+  final String version;
+  final String fileName;
+
+  const DesktopUploadResult({
+    required this.downloadUrl,
+    required this.version,
+    required this.fileName,
+  });
 }
 
 class DesktopReleaseZip {

@@ -90,7 +90,7 @@ class _BkWindowsAppPageState extends State<BkWindowsAppPage> {
     }
   }
 
-  Future<void> _uploadPackage({required bool installerOnly}) async {
+  Future<void> _uploadSetupExe() async {
     final version = _versionCtrl.text.trim();
     if (version.isEmpty) {
       _snack('Inserisci la versione prima di caricare.', isError: true);
@@ -106,25 +106,17 @@ class _BkWindowsAppPageState extends State<BkWindowsAppPage> {
     });
 
     try {
-      final url = installerOnly
-          ? await BkCreditCalcDesktopService.uploadReleaseInstaller(
-              version: version,
-              onProgress: (p) {
-                if (mounted) setState(() => _uploadProgress = p);
-              },
-            )
-          : await BkCreditCalcDesktopService.uploadReleasePackage(
-              version: version,
-              zipOnly: true,
-              onProgress: (p) {
-                if (mounted) setState(() => _uploadProgress = p);
-              },
-            );
+      final uploaded = await BkCreditCalcDesktopService.uploadReleaseInstaller(
+        version: version,
+        onProgress: (p) {
+          if (mounted) setState(() => _uploadProgress = p);
+        },
+      );
       await BkCreditCalcDesktopService.saveConfig(
         enabled: enabled,
-        version: version,
-        windowsDownloadUrl: url,
-        windowsInstallerUrl: url,
+        version: uploaded.version,
+        windowsDownloadUrl: uploaded.downloadUrl,
+        windowsInstallerUrl: uploaded.downloadUrl,
         releaseNotes: notes,
       );
       if (mounted) {
@@ -134,7 +126,9 @@ class _BkWindowsAppPageState extends State<BkWindowsAppPage> {
           _notesCtrl.clear();
           _urlCtrl.clear();
         });
-        _snack('Release v$version attiva su Planet.');
+        _snack(
+          'Release v${uploaded.version} attiva: ${uploaded.fileName}',
+        );
       }
     } on FirebaseException catch (e) {
       if (mounted) {
@@ -301,9 +295,8 @@ class _BkWindowsAppPageState extends State<BkWindowsAppPage> {
                       if (_expectedSetupName() != null) ...[
                         const SizedBox(height: 8),
                         SelectableText(
-                          'Installer atteso: ${_expectedSetupName()}\n'
-                          'Build locale: ${BkCreditCalcDesktopService.localSetupPathHint(_versionCtrl.text.trim())}\n'
-                          'ZIP fallback: ${BkCreditCalcDesktopService.localZipPathHint(_versionCtrl.text.trim())}',
+                          'File da caricare: ${_expectedSetupName()}\n'
+                          'Build locale: ${BkCreditCalcDesktopService.localSetupPathHint(_versionCtrl.text.trim())}',
                           style: TextStyle(
                             fontSize: 12,
                             color: Colors.grey.shade700,
@@ -357,18 +350,10 @@ class _BkWindowsAppPageState extends State<BkWindowsAppPage> {
                         runSpacing: 12,
                         children: [
                           FilledButton.icon(
-                            onPressed: _uploading || _loading
-                                ? null
-                                : () => _uploadPackage(installerOnly: true),
+                            onPressed:
+                                _uploading || _loading ? null : _uploadSetupExe,
                             icon: const Icon(Icons.install_desktop),
                             label: const Text('Carica Setup.exe'),
-                          ),
-                          OutlinedButton.icon(
-                            onPressed: _uploading || _loading
-                                ? null
-                                : () => _uploadPackage(installerOnly: false),
-                            icon: const Icon(Icons.folder_zip),
-                            label: const Text('Carica ZIP'),
                           ),
                           OutlinedButton.icon(
                             onPressed: _uploading || _loading
@@ -415,7 +400,7 @@ class _BkWindowsAppPageState extends State<BkWindowsAppPage> {
                         children: [
                           const Expanded(
                             child: Text(
-                              'Installer / ZIP su Storage',
+                              'Installer su Storage',
                               style: TextStyle(
                                 fontWeight: FontWeight.bold,
                                 fontSize: 16,
@@ -507,14 +492,19 @@ class _BkWindowsAppPageState extends State<BkWindowsAppPage> {
                               style: TextStyle(color: Colors.red.shade700),
                             );
                           }
-                          final zips = snap.data ?? [];
-                          if (zips.isEmpty) {
+                          final installers = (snap.data ?? [])
+                              .where(
+                                (f) => BkCreditCalcDesktopService
+                                    .isInstallerFileName(f.name),
+                              )
+                              .toList();
+                          if (installers.isEmpty) {
                             return const Text(
-                              'Nessun pacchetto in Storage. Genera CreditCalc-*-Setup.exe (Inno Setup) e caricalo qui.',
+                              'Nessun Setup.exe in Storage. Esegui la build e carica CreditCalc-*-Setup.exe.',
                             );
                           }
                           return Column(
-                            children: zips.map((zip) {
+                            children: installers.map((zip) {
                               final sizeMb =
                                   (zip.sizeBytes / (1024 * 1024))
                                       .toStringAsFixed(2);
@@ -618,11 +608,10 @@ class _BkWindowsAppPageState extends State<BkWindowsAppPage> {
                       const Text(
                         '1. Installa Inno Setup 6 (una tantum): https://jrsoftware.org/isdl.php\n'
                         '2. Aumenta version in creditcalc-tool/credit_calc/pubspec.yaml\n'
-                        '3. Build: powershell -File scripts/build_creditcalc_zip.ps1\n'
-                        '4. Carica dist/CreditCalc-<versione>-Setup.exe su Firebase (BackOffice)\n'
-                        '5. L utente scarica il Setup.exe e segue la procedura guidata (come OBS)\n'
-                        '6. Aggiornamento: stesso Setup.exe con versione maggiore (sostituisce l installazione)\n'
-                        '7. ZIP in dist/ resta solo come fallback manuale',
+                        '3. Build: powershell -File scripts/build_creditcalc_setup.ps1\n'
+                        '4. Carica SOLO dist/CreditCalc-<versione>-Setup.exe su Firebase\n'
+                        '5. L utente scarica il Setup.exe e installa (come OBS)\n'
+                        '6. Non usare file ZIP: Planet riceve solo il Setup.exe',
                         style: TextStyle(fontSize: 14, height: 1.5),
                       ),
                       const SizedBox(height: 12),
