@@ -44,4 +44,6 @@ app.*.map.json
 /android/app/profile
 /android/app/release
 scripts/serviceAccountKey.json
-scripts/serviceAccountKey.json
+
+# Node (non versionare: rallenta clone e deploy Netlify)
+node_modules/

@@ -3,11 +3,11 @@
 // -----------------------------------------------------------------------------
 // IMPORT
 // -----------------------------------------------------------------------------
-import 'dart:io' as io show File;
-import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:file_picker/file_picker.dart';
 import 'package:firebase_storage/firebase_storage.dart';
+
+import '../../utils/bk_storage_upload.dart';
 
 // -----------------------------------------------------------------------------
 // STORAGE SERVICE
@@ -37,21 +37,13 @@ class StorageService {
         .ref()
         .child('courses/${courseRef.id}/attachments/$safeName');
 
-    UploadTask uploadTask;
-
-    if (kIsWeb) {
-      uploadTask = ref.putData(file.bytes!);
-    } else if (file.path != null) {
-      uploadTask = ref.putFile(
-        io.File(file.path!),
-        SettableMetadata(
-          contentType: 'application/octet-stream',
-        ),
-      );
-    } else {
-      throw Exception(
-          "Impossibile leggere il file selezionato");
-    }
+    final uploadTask = await startStorageUpload(
+      ref: ref,
+      file: file,
+      metadata: const SettableMetadata(
+        contentType: 'application/octet-stream',
+      ),
+    );
 
     uploadTask.snapshotEvents.listen((event) {
       if (event.totalBytes > 0) {

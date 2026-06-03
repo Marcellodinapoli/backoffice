@@ -6,7 +6,8 @@ ROOT="$(cd "$(dirname "$0")/.." && pwd)"
 cd "$ROOT"
 
 # Cache tra deploy (Netlify conserva .cache se configurato in UI)
-CACHE_ROOT="${NETLIFY_BUILD_BASE:-$HOME}/.netlify_cache"
+# Netlify persiste /opt/buildhome tra i deploy
+CACHE_ROOT="${NETLIFY_BUILD_CACHE:-${NETLIFY_BUILD_BASE:-$HOME}/.netlify_cache}"
 FLUTTER_DIR="${CACHE_ROOT}/flutter"
 export PUB_CACHE="${CACHE_ROOT}/pub-cache"
 FLUTTER_CHANNEL="${FLUTTER_CHANNEL:-stable}"

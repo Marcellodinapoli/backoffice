@@ -1,6 +1,3 @@
-// 👇 Import compatibile multipiattaforma
-import 'dart:io' as io show File;
-import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:flutter/material.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:file_picker/file_picker.dart';
@@ -8,6 +5,7 @@ import 'package:firebase_storage/firebase_storage.dart';
 import 'package:excel/excel.dart' as ex;
 
 import '../../main.dart';
+import '../utils/bk_storage_upload.dart';
 import 'bk_courses/course_card.dart';
 
 // -----------------------------------------------------------------------------
@@ -152,7 +150,7 @@ class _BkCoursesPageState extends State<BkCoursesPage> {
                       onPressed: () async {
                         try {
                           final result = await FilePicker.platform.pickFiles(
-                            withData: kIsWeb,
+                            withData: true,
                           );
                           if (result == null) return;
 
@@ -169,21 +167,10 @@ class _BkCoursesPageState extends State<BkCoursesPage> {
                               .child(
                               'courses/${DateTime.now().millisecondsSinceEpoch}_$fileName');
 
-                          UploadTask uploadTask;
-
-                          if (kIsWeb) {
-                            if (file.bytes == null) {
-                              setModalState(() => _isUploading = false);
-                              return;
-                            }
-                            uploadTask = ref.putData(file.bytes!);
-                          } else {
-                            if (file.path == null) {
-                              setModalState(() => _isUploading = false);
-                              return;
-                            }
-                            uploadTask = ref.putFile(io.File(file.path!));
-                          }
+                          final uploadTask = await startStorageUpload(
+                            ref: ref,
+                            file: file,
+                          );
 
                           uploadTask.snapshotEvents.listen((event) {
                             if (event.totalBytes > 0) {
@@ -623,7 +610,7 @@ class _BkCoursesPageState extends State<BkCoursesPage> {
                     ElevatedButton.icon(
                       onPressed: () async {
                         final result =
-                        await FilePicker.platform.pickFiles(withData: kIsWeb);
+                        await FilePicker.platform.pickFiles(withData: true);
                         if (result == null) return;
 
                         final file = result.files.first;
@@ -632,13 +619,10 @@ class _BkCoursesPageState extends State<BkCoursesPage> {
                         final ref = FirebaseStorage.instance
                             .ref('courses/${DateTime.now().millisecondsSinceEpoch}_$fileName');
 
-                        UploadTask uploadTask;
-
-                        if (kIsWeb) {
-                          uploadTask = ref.putData(file.bytes!);
-                        } else {
-                          uploadTask = ref.putFile(io.File(file.path!));
-                        }
+                        final uploadTask = await startStorageUpload(
+                          ref: ref,
+                          file: file,
+                        );
 
                         final snapshot = await uploadTask;
                         final downloadUrl =

@@ -1,9 +1,9 @@
-import 'dart:io' as io show File;
-
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:file_picker/file_picker.dart';
 import 'package:firebase_storage/firebase_storage.dart';
 import 'package:flutter/foundation.dart' show kIsWeb;
+
+import '../utils/bk_storage_upload.dart';
 
 /// Gestione release app Windows CreditCalc su Firestore + Storage.
 class BkCreditCalcDesktopService {
@@ -116,7 +116,7 @@ class BkCreditCalcDesktopService {
     final result = await FilePicker.platform.pickFiles(
       type: FileType.custom,
       allowedExtensions: ['exe'],
-      withData: kIsWeb,
+      withData: true,
       allowMultiple: false,
       dialogTitle: 'Seleziona CreditCalc-1.0.2-Setup.exe',
     );
@@ -167,33 +167,21 @@ class BkCreditCalcDesktopService {
   }) async {
     final ref = FirebaseStorage.instance.ref(storagePath);
 
-    UploadTask uploadTask;
-    if (kIsWeb) {
-      if (file.bytes == null || file.bytes!.isEmpty) {
-        throw Exception(
-          'Impossibile leggere ${file.name} nel browser. '
-          'Prova da Firebase Console → Carica file, oppure esegui il BackOffice su Windows.',
-        );
-      }
-      onProgress(0.01);
-      uploadTask = ref.putData(
-        file.bytes!,
-        SettableMetadata(
-          contentType: contentType,
-          customMetadata: {'originalName': file.name},
-        ),
+    if (kIsWeb && (file.bytes == null || file.bytes!.isEmpty)) {
+      throw Exception(
+        'Impossibile leggere ${file.name} nel browser. '
+        'Prova da Firebase Console → Carica file, oppure esegui il BackOffice su Windows.',
       );
-    } else if (file.path != null) {
-      uploadTask = ref.putFile(
-        io.File(file.path!),
-        SettableMetadata(
-          contentType: contentType,
-          customMetadata: {'originalName': file.name},
-        ),
-      );
-    } else {
-      throw Exception('Impossibile leggere il file selezionato.');
     }
+    onProgress(0.01);
+    final uploadTask = await startStorageUpload(
+      ref: ref,
+      file: file,
+      metadata: SettableMetadata(
+        contentType: contentType,
+        customMetadata: {'originalName': file.name},
+      ),
+    );
 
     await for (final event in uploadTask.snapshotEvents) {
       final total = event.totalBytes;
