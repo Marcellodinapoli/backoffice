@@ -15,8 +15,9 @@
 
 [build.environment]
   FLUTTER_CHANNEL = "stable"
-  # Evita warning analytics in CI
   CI = "true"
+  # Non serve npm per Flutter: evita install inutile che può far fallire il deploy
+  NETLIFY_SKIP_DEPENDENCIES_INSTALL = "true"
 
 # Flutter web SPA: tutte le route → index.html
 [[redirects]]

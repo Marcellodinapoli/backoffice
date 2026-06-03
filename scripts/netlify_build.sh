@@ -27,6 +27,7 @@ export PATH="$FLUTTER_DIR/bin:$PATH"
 
 flutter --version
 flutter config --enable-web --no-analytics
+flutter precache --web
 flutter pub get
 flutter build web --release
 

@@ -1,0 +1,38 @@
+# Build Flutter web e pubblica su Netlify ad ogni push su main.
+# Secrets (Netlify → User settings → Applications → Personal access token):
+#   NETLIFY_AUTH_TOKEN
+#   NETLIFY_SITE_ID  (Site configuration → Site details → API ID)
+name: Deploy Netlify
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: subosito/flutter-action@v2
+        with:
+          channel: stable
+          cache: true
+
+      - name: Build web
+        run: |
+          flutter config --enable-web --no-analytics
+          flutter pub get
+          flutter build web --release
+          test -f build/web/index.html
+
+      - name: Deploy to Netlify
+        uses: nwtgck/actions-netlify-deploy@v2.1
+        with:
+          publish-dir: ./build/web
+          production-branch: main
+          production-deploy: true
+          netlify-auth-token: ${{ secrets.NETLIFY_AUTH_TOKEN }}
+          netlify-site-id: ${{ secrets.NETLIFY_SITE_ID }}
