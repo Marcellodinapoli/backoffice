@@ -2,331 +2,338 @@
 
 import 'package:flutter/material.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
+import 'bk_company_jobs_page.dart';
 
-class BkJobsPage extends StatefulWidget {
+class BkJobsPage extends StatelessWidget {
   const BkJobsPage({super.key});
 
-  @override
-  State<BkJobsPage> createState() => _BkJobsPageState();
-}
+  static const _expiringWithinDays = 7;
 
-class _BkJobsPageState extends State<BkJobsPage> {
+  Color _statusColor(String status) {
+    switch (status) {
+      case "active":
+        return Colors.green;
+      case "blocked":
+        return Colors.red;
+      case "standby":
+        return Colors.orange;
+      default:
+        return Colors.orange;
+    }
+  }
 
-  // ---------------------------------------------------------------------------
-  // CONFIG
-  // ---------------------------------------------------------------------------
+  String _resolveJobStatus(Map<String, dynamic> data) {
+    String status = data['status'] ?? 'pending';
+    final Timestamp? expiryTs = data['expiryDate'];
+    final DateTime? expiryDateRaw = expiryTs?.toDate();
+    final bool isExpired = expiryDateRaw != null &&
+        expiryDateRaw.isBefore(DateTime.now());
 
-  final CollectionReference _jobsRef =
-  FirebaseFirestore.instance.collection('job_offers');
+    if (isExpired && status == 'approved') {
+      status = 'expired';
+    }
+    return status;
+  }
 
-  // ---------------------------------------------------------------------------
-// SERVICES
-// ---------------------------------------------------------------------------
-
-  Future<void> _approveJob(String id) async {
+  _CompanyJobStats _statsForCompany(
+    List<QueryDocumentSnapshot> allJobs,
+    String companyId,
+  ) {
+    final stats = _CompanyJobStats();
     final now = DateTime.now();
-    final expiry = now.add(const Duration(days: 30));
+    final expiringThreshold = now.add(
+      const Duration(days: _expiringWithinDays),
+    );
 
-    await _jobsRef.doc(id).update({
-      'status': 'approved',
-      'online': true,
-      'approvedAt': FieldValue.serverTimestamp(),
-      'createdAt': Timestamp.fromDate(now),
-      'expiryDate': Timestamp.fromDate(expiry),
-    });
+    for (final doc in allJobs) {
+      final data = doc.data() as Map<String, dynamic>;
+      if ((data['companyId'] ?? '') != companyId) continue;
+
+      stats.total++;
+
+      final status = _resolveJobStatus(data);
+      final Timestamp? expiryTs = data['expiryDate'];
+      final DateTime? expiry = expiryTs?.toDate();
+
+      switch (status) {
+        case 'pending':
+          stats.pending++;
+          break;
+        case 'approved':
+          stats.published++;
+          if (expiry != null &&
+              expiry.isAfter(now) &&
+              !expiry.isAfter(expiringThreshold)) {
+            stats.expiring++;
+          }
+          break;
+        case 'blocked':
+          stats.blocked++;
+          break;
+        case 'expired':
+          stats.expired++;
+          break;
+        case 'rejected':
+          stats.rejected++;
+          break;
+      }
+    }
+
+    return stats;
   }
 
-  Future<void> _rejectJob(String id) async {
-    await _jobsRef.doc(id).update({
-      'status': 'rejected',
-      'online': false,
-      'rejectedAt': FieldValue.serverTimestamp(),
-    });
+  Widget _statRow(String label, int value, Color color) {
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 4),
+      child: Row(
+        mainAxisAlignment: MainAxisAlignment.spaceBetween,
+        children: [
+          Text(
+            label,
+            style: TextStyle(color: Colors.grey.shade700, fontSize: 14),
+          ),
+          Text(
+            "$value",
+            style: TextStyle(
+              color: color,
+              fontWeight: FontWeight.bold,
+              fontSize: 14,
+            ),
+          ),
+        ],
+      ),
+    );
   }
-
-  Future<void> _blockJob(String id) async {
-    await _jobsRef.doc(id).update({
-      'status': 'blocked',
-      'online': false,
-      'blockedAt': FieldValue.serverTimestamp(),
-    });
-  }
-
-  Future<void> _unblockJob(String id) async {
-    final now = DateTime.now();
-    final expiry = now.add(const Duration(days: 30));
-
-    await _jobsRef.doc(id).update({
-      'status': 'approved',
-      'online': true,
-      'unblockedAt': FieldValue.serverTimestamp(),
-      'createdAt': Timestamp.fromDate(now),
-      'expiryDate': Timestamp.fromDate(expiry),
-    });
-  }
-
-// ---------------------------------------------------------------------------
-// BUILD
-// ---------------------------------------------------------------------------
 
   @override
   Widget build(BuildContext context) {
+    final companiesStream =
+        FirebaseFirestore.instance.collection('companies').snapshots();
+    final jobsStream = FirebaseFirestore.instance
+        .collection('job_offers')
+        .snapshots();
+
     return Padding(
       padding: const EdgeInsets.all(16),
       child: StreamBuilder<QuerySnapshot>(
-        stream: _jobsRef.orderBy('createdAt', descending: true).snapshots(),
-        builder: (context, snapshot) {
-          if (snapshot.connectionState == ConnectionState.waiting &&
-              !snapshot.hasData) {
+        stream: companiesStream,
+        builder: (context, companiesSnap) {
+          if (companiesSnap.connectionState == ConnectionState.waiting &&
+              !companiesSnap.hasData) {
             return const Center(child: Text("Caricamento..."));
           }
 
-          if (snapshot.hasError) {
+          if (companiesSnap.hasError) {
             return Center(
               child: Text(
-                "Errore: ${snapshot.error}",
+                "Errore: ${companiesSnap.error}",
                 style: const TextStyle(color: Colors.red),
               ),
             );
           }
 
-          if (!snapshot.hasData || snapshot.data!.docs.isEmpty) {
-            return const Center(
-              child: Text(
-                "Nessuna offerta di lavoro disponibile.",
-                style: TextStyle(color: Colors.black54),
-              ),
-            );
-          }
-
-          final docs = snapshot.data!.docs;
-
-          return ListView.separated(
-            itemCount: docs.length,
-            separatorBuilder: (_, __) => const SizedBox(height: 12),
-            itemBuilder: (_, i) {
-              final data = docs[i].data() as Map<String, dynamic>;
-              final id = docs[i].id;
-
-              final String title = data['title'] ?? '';
-              final String companyId = data['companyId'] ?? '';
-              final String location = data['location'] ?? '';
-              final String contract = data['contractType'] ?? '';
-              final String education = data['education'] ?? '';
-              final String experience = data['experience'] ?? '';
-              final String benefits = data['benefits'] ?? '';
-              final String description = data['description'] ?? '';
-              final String schedule = data['schedule'] ?? '';
-              final String workMode = data['workMode'] ?? '';
-              final int qualityScore = data['qualityScore'] ?? 0;
-              final int applicationsCount = data['applicationsCount'] ?? 0;
-              final bool online = data['online'] ?? false;
-
-              final int? salaryFrom = data['salaryFrom'];
-              final int? salaryTo = data['salaryTo'];
-              final int? salaryMin = data['salaryMin'];
-              final int? salaryMax = data['salaryMax'];
-
-              final List<dynamic> skillsRaw = data['skills'] ?? [];
-              final List<String> skills = skillsRaw
-                  .map((s) => (s['value'] ?? '').toString())
-                  .where((e) => e.isNotEmpty)
-                  .toList();
-
-              String status = data['status'] ?? 'pending';
-
-              final Timestamp? createdTs = data['createdAt'];
-              final String createdDate =
-              createdTs != null ? _formatDate(createdTs.toDate()) : '';
-
-              final Timestamp? expiryTs = data['expiryDate'];
-              final DateTime? expiryDateRaw = expiryTs?.toDate();
-
-              final String expiryDate =
-              expiryDateRaw != null ? _formatDate(expiryDateRaw) : '';
-
-              final bool isExpired =
-                  expiryDateRaw != null &&
-                      expiryDateRaw.isBefore(DateTime.now());
-
-              if (isExpired && status == 'approved') {
-                status = 'expired';
+          return StreamBuilder<QuerySnapshot>(
+            stream: jobsStream,
+            builder: (context, jobsSnap) {
+              if (jobsSnap.connectionState == ConnectionState.waiting &&
+                  !jobsSnap.hasData) {
+                return const Center(child: Text("Caricamento..."));
               }
 
-              final bool isPending = status == 'pending';
-              final bool isBlocked = status == 'blocked';
-
-              return Card(
-                color: status == 'pending'
-                    ? Colors.orange.shade50
-                    : status == 'approved'
-                    ? Colors.green.shade50
-                    : status == 'blocked'
-                    ? Colors.grey.shade300
-                    : status == 'expired'
-                    ? Colors.red.shade100
-                    : Colors.red.shade50,
-                shape: RoundedRectangleBorder(
-                  borderRadius: BorderRadius.circular(14),
-                ),
-                child: Padding(
-                  padding: const EdgeInsets.all(16),
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-
-                      Text(
-                        title,
-                        style: const TextStyle(
-                          fontWeight: FontWeight.bold,
-                          fontSize: 18,
-                        ),
-                      ),
-
-                      const SizedBox(height: 6),
-
-                      FutureBuilder<DocumentSnapshot>(
-                        future: FirebaseFirestore.instance
-                            .collection('companies')
-                            .doc(companyId)
-                            .get(),
-                        builder: (context, companySnap) {
-                          if (!companySnap.hasData) {
-                            return const Text(
-                              "Azienda: ...",
-                              style: TextStyle(fontWeight: FontWeight.w600),
-                            );
-                          }
-
-                          final companyData =
-                          companySnap.data!.data() as Map<String, dynamic>?;
-
-                          final companyName =
-                              companyData?['companyName'] ?? '—';
-
-                          return Text(
-                            "Azienda: $companyName",
-                            style: const TextStyle(
-                              fontWeight: FontWeight.w600,
-                            ),
-                          );
-                        },
-                      ),
-
-                      Text(location),
-
-                      const SizedBox(height: 12),
-
-                      Text("Contratto: $contract"),
-                      if (schedule.isNotEmpty)
-                        Text("Orario: $schedule"),
-                      if (workMode.isNotEmpty)
-                        Text("Modalità: $workMode"),
-                      if (education.isNotEmpty)
-                        Text("Formazione richiesta: $education"),
-                      if (experience.isNotEmpty)
-                        Text("Esperienza richiesta: $experience"),
-
-                      if (salaryFrom != null || salaryTo != null)
-                        Text("Stipendio: ${salaryFrom ?? '-'} - ${salaryTo ?? '-'}"),
-
-                      if (salaryMin != null || salaryMax != null)
-                        Text("RAL: ${salaryMin ?? '-'} - ${salaryMax ?? '-'}"),
-
-                      if (skills.isNotEmpty)
-                        Text("Competenze: ${skills.join(', ')}"),
-
-                      if (benefits.isNotEmpty) ...[
-                        const SizedBox(height: 8),
-                        const Text(
-                          "Benefit:",
-                          style: TextStyle(fontWeight: FontWeight.w600),
-                        ),
-                        Text(benefits),
-                      ],
-
-                      if (description.isNotEmpty) ...[
-                        const SizedBox(height: 8),
-                        const Text(
-                          "Descrizione:",
-                          style: TextStyle(fontWeight: FontWeight.w600),
-                        ),
-                        Text(description),
-                      ],
-
-                      const SizedBox(height: 12),
-
-                      Text(
-                        "Pubblicato il $createdDate"
-                            "${expiryDate.isNotEmpty ? " • Scade il $expiryDate" : ""}",
-                        style: const TextStyle(fontSize: 12),
-                      ),
-
-                      const SizedBox(height: 4),
-
-                      Text("Candidature: $applicationsCount"),
-                      Text("Qualità annuncio: $qualityScore%"),
-                      Text("Online: ${online ? "Si" : "No"}"),
-
-                      const SizedBox(height: 4),
-
-                      Text(
-                        "Stato: $status",
-                        style: const TextStyle(
-                          fontSize: 12,
-                          fontWeight: FontWeight.w500,
-                        ),
-                      ),
-
-                      const SizedBox(height: 12),
-
-                      Row(
-                        children: [
-
-                          if (isPending) ...[
-                            ElevatedButton.icon(
-                              style: ElevatedButton.styleFrom(
-                                backgroundColor: Colors.green,
-                              ),
-                              onPressed: () => _approveJob(id),
-                              icon: const Icon(Icons.check, size: 18),
-                              label: const Text("Approva"),
-                            ),
-                            const SizedBox(width: 12),
-                            ElevatedButton.icon(
-                              style: ElevatedButton.styleFrom(
-                                backgroundColor: Colors.red,
-                              ),
-                              onPressed: () => _rejectJob(id),
-                              icon: const Icon(Icons.close, size: 18),
-                              label: const Text("Rifiuta"),
-                            ),
-                            const SizedBox(width: 12),
-                          ],
-
-                          if (isBlocked)
-                            ElevatedButton.icon(
-                              style: ElevatedButton.styleFrom(
-                                backgroundColor: Colors.green,
-                              ),
-                              onPressed: () => _unblockJob(id),
-                              icon: const Icon(Icons.lock_open, size: 18),
-                              label: const Text("Sblocca"),
-                            )
-                          else
-                            ElevatedButton.icon(
-                              style: ElevatedButton.styleFrom(
-                                backgroundColor: Colors.black87,
-                              ),
-                              onPressed: () => _blockJob(id),
-                              icon: const Icon(Icons.block, size: 18),
-                              label: const Text("Blocca pubblicazione"),
-                            ),
-                        ],
-                      ),
-                    ],
+              if (jobsSnap.hasError) {
+                return Center(
+                  child: Text(
+                    "Errore: ${jobsSnap.error}",
+                    style: const TextStyle(color: Colors.red),
                   ),
-                ),
+                );
+              }
+
+              final companies = companiesSnap.data?.docs ?? [];
+              final allJobs = jobsSnap.data?.docs ?? [];
+
+              if (companies.isEmpty) {
+                return const Center(
+                  child: Text(
+                    "Nessuna azienda disponibile.",
+                    style: TextStyle(color: Colors.black54),
+                  ),
+                );
+              }
+
+              return ListView.separated(
+                itemCount: companies.length,
+                separatorBuilder: (_, __) => const SizedBox(height: 4),
+                itemBuilder: (context, index) {
+                  final companyDoc = companies[index];
+                  final companyId = companyDoc.id;
+                  final data =
+                      companyDoc.data() as Map<String, dynamic>;
+
+                  final companyName =
+                      data['companyName'] ?? 'Senza nome';
+                  final email = data['email'] ?? 'Nessuna email';
+                  final fallbackStatus = data['status'] ?? 'pending';
+
+                  final stats = _statsForCompany(allJobs, companyId);
+
+                  return StreamBuilder<DocumentSnapshot>(
+                    stream: FirebaseFirestore.instance
+                        .collection('users')
+                        .doc(companyId)
+                        .snapshots(),
+                    builder: (context, userSnapshot) {
+                      String status = fallbackStatus;
+
+                      if (userSnapshot.hasData &&
+                          userSnapshot.data!.exists) {
+                        final userData = userSnapshot.data!.data()
+                            as Map<String, dynamic>?;
+                        if (userData != null &&
+                            userData['status'] != null) {
+                          status = userData['status'];
+                        }
+                      }
+
+                      return Padding(
+                        padding: const EdgeInsets.symmetric(vertical: 10),
+                        child: Card(
+                          elevation: 1.5,
+                          color: const Color(0xFFF5F5F5),
+                          shape: RoundedRectangleBorder(
+                            borderRadius: BorderRadius.circular(18),
+                          ),
+                          child: InkWell(
+                            borderRadius: BorderRadius.circular(18),
+                            onTap: () {
+                              Navigator.push(
+                                context,
+                                MaterialPageRoute(
+                                  builder: (_) => BkCompanyJobsPage(
+                                    companyId: companyId,
+                                    companyName: companyName,
+                                  ),
+                                ),
+                              );
+                            },
+                            child: Padding(
+                              padding: const EdgeInsets.fromLTRB(
+                                20,
+                                20,
+                                20,
+                                18,
+                              ),
+                              child: Column(
+                                crossAxisAlignment:
+                                    CrossAxisAlignment.start,
+                                children: [
+                                  Row(
+                                    children: [
+                                      Icon(
+                                        Icons.circle,
+                                        color: _statusColor(status),
+                                        size: 12,
+                                      ),
+                                      const SizedBox(width: 10),
+                                      const Icon(
+                                        Icons.business_outlined,
+                                        color: Colors.blueGrey,
+                                        size: 22,
+                                      ),
+                                      const SizedBox(width: 12),
+                                      Expanded(
+                                        child: Text(
+                                          companyName,
+                                          style: const TextStyle(
+                                            fontSize: 18,
+                                            fontWeight: FontWeight.w700,
+                                            color: Colors.black,
+                                          ),
+                                          maxLines: 1,
+                                          overflow: TextOverflow.ellipsis,
+                                        ),
+                                      ),
+                                    ],
+                                  ),
+                                  const SizedBox(height: 12),
+                                  Text(
+                                    email,
+                                    style: TextStyle(
+                                      color: Colors.grey.shade700,
+                                      fontSize: 14,
+                                    ),
+                                  ),
+                                  const SizedBox(height: 14),
+                                  _statRow(
+                                    "Offerte totali",
+                                    stats.total,
+                                    Colors.blue,
+                                  ),
+                                  _statRow(
+                                    "Pubblicate",
+                                    stats.published,
+                                    Colors.green,
+                                  ),
+                                  _statRow(
+                                    "In scadenza",
+                                    stats.expiring,
+                                    Colors.orange,
+                                  ),
+                                  _statRow(
+                                    "Scadute",
+                                    stats.expired,
+                                    Colors.red,
+                                  ),
+                                  _statRow(
+                                    "In attesa",
+                                    stats.pending,
+                                    Colors.amber.shade800,
+                                  ),
+                                  _statRow(
+                                    "Bloccate",
+                                    stats.blocked,
+                                    Colors.grey.shade700,
+                                  ),
+                                  const SizedBox(height: 18),
+                                  Align(
+                                    alignment: Alignment.centerRight,
+                                    child: ElevatedButton(
+                                      style: ElevatedButton.styleFrom(
+                                        backgroundColor:
+                                            const Color(0xFF1565C0),
+                                        foregroundColor: Colors.white,
+                                        padding:
+                                            const EdgeInsets.symmetric(
+                                          horizontal: 20,
+                                          vertical: 10,
+                                        ),
+                                        shape: const StadiumBorder(),
+                                        elevation: 0,
+                                      ),
+                                      onPressed: () {
+                                        Navigator.push(
+                                          context,
+                                          MaterialPageRoute(
+                                            builder: (_) =>
+                                                BkCompanyJobsPage(
+                                              companyId: companyId,
+                                              companyName: companyName,
+                                            ),
+                                          ),
+                                        );
+                                      },
+                                      child: const Text("Dettagli"),
+                                    ),
+                                  ),
+                                ],
+                              ),
+                            ),
+                          ),
+                        ),
+                      );
+                    },
+                  );
+                },
               );
             },
           );
@@ -334,14 +341,14 @@ class _BkJobsPageState extends State<BkJobsPage> {
       ),
     );
   }
+}
 
-  // ---------------------------------------------------------------------------
-  // UTIL
-  // ---------------------------------------------------------------------------
-
-  String _formatDate(DateTime d) {
-    return "${d.day.toString().padLeft(2, '0')}/"
-        "${d.month.toString().padLeft(2, '0')}/"
-        "${d.year}";
-  }
+class _CompanyJobStats {
+  int total = 0;
+  int published = 0;
+  int expiring = 0;
+  int expired = 0;
+  int pending = 0;
+  int blocked = 0;
+  int rejected = 0;
 }

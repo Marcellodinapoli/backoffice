@@ -116,185 +116,222 @@ class BkDashboardPage extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final width = MediaQuery.of(context).size.width;
+
+    int crossAxisCount = 3;
+    if (width < 1200) crossAxisCount = 2;
+    if (width < 800) crossAxisCount = 1;
+
     return Scaffold(
       backgroundColor: const Color(0xFFF4F6FA),
       body: SafeArea(
-        child: Padding(
-          padding: const EdgeInsets.all(30),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
+        child: FutureBuilder(
+          future: Future.wait([
+            _countUsersDetailed(),
+            _countCompanies(),
+            _countCollection('courses'),
+            _countCollection('job_applications'),
+            _countJobOffersDetailed(),
+            _countRoleplay(),
+          ]),
+          builder: (context, AsyncSnapshot<List<dynamic>> snapshot) {
+            if (!snapshot.hasData) {
+              return const Center(child: CircularProgressIndicator());
+            }
 
-              const Text(
-                "Dashboard",
-                style: TextStyle(fontSize: 26, fontWeight: FontWeight.bold),
+            final users = snapshot.data![0] as Map<String, int>;
+            final companies = snapshot.data![1] as int;
+            final courses = snapshot.data![2] as int;
+            final applications = snapshot.data![3] as int;
+            final jobs = snapshot.data![4] as Map<String, int>;
+            final roleplay = snapshot.data![5] as int;
+
+            final cards = [
+              _DashboardCardData(
+                title: "Utenti",
+                value: users["total"].toString(),
+                accentColor: Colors.blue,
+                details: [
+                  _DetailRow("Attivi", users["active"]!, Colors.green),
+                  _DetailRow("Bloccati", users["blocked"]!, Colors.orange),
+                  _DetailRow("Cancellati", users["deleted"]!, Colors.red),
+                  _DetailRow("Mese", users["month"]!, Colors.amber),
+                ],
               ),
-
-              const SizedBox(height: 40),
-
-              FutureBuilder(
-                future: Future.wait([
-                  _countUsersDetailed(),
-                  _countCompanies(),
-                  _countCollection('courses'),
-                  _countCollection('job_applications'),
-                  _countJobOffersDetailed(),
-                  _countRoleplay(),
-                ]),
-                builder: (context, AsyncSnapshot<List<dynamic>> snapshot) {
-                  if (!snapshot.hasData) {
-                    return const Center(child: CircularProgressIndicator());
-                  }
-
-                  final users = snapshot.data![0] as Map<String, int>;
-                  final companies = snapshot.data![1] as int;
-                  final courses = snapshot.data![2] as int;
-                  final applications = snapshot.data![3] as int;
-                  final jobs = snapshot.data![4] as Map<String, int>;
-                  final roleplay = snapshot.data![5] as int;
-
-                  return Wrap(
-                    spacing: 20,
-                    runSpacing: 20,
-                    children: [
-
-                      _bigCard(
-                        title: "Utenti",
-                        mainValue: users["total"].toString(),
-                        children: [
-                          _row("Attivi", users["active"], Colors.green),
-                          _row("Bloccati", users["blocked"], Colors.orange),
-                          _row("Cancellati", users["deleted"], Colors.red),
-                          _row("Mese", users["month"], Colors.amber),
-                        ],
-                      ),
-
-                      _bigCard(
-                        title: "Aziende",
-                        mainValue: companies.toString(),
-                        children: [
-                          _row("Totali", companies, Colors.blue),
-                          _row("", 0, Colors.transparent),
-                          _row("", 0, Colors.transparent),
-                          _row("", 0, Colors.transparent),
-                        ],
-                      ),
-
-                      _bigCard(
-                        title: "Corsi",
-                        mainValue: courses.toString(),
-                        children: [
-                          _row("Disponibili", courses, Colors.blue),
-                          _row("", 0, Colors.transparent),
-                          _row("", 0, Colors.transparent),
-                          _row("", 0, Colors.transparent),
-                        ],
-                      ),
-
-                      _bigCard(
-                        title: "Candidature",
-                        mainValue: applications.toString(),
-                        children: [
-                          _row("Totali", applications, Colors.blue),
-                          _row("", 0, Colors.transparent),
-                          _row("", 0, Colors.transparent),
-                          _row("", 0, Colors.transparent),
-                        ],
-                      ),
-
-                      _bigCard(
-                        title: "Offerte Job",
-                        mainValue: jobs["total"].toString(),
-                        children: [
-                          _row("Attive", jobs["active"], Colors.green),
-                          _row("Pending", jobs["pending"], Colors.orange),
-                          _row("Bloccate", jobs["blocked"], Colors.red),
-                          _row("Mese", jobs["month"], Colors.amber),
-                          _row("Scadute", jobs["expired"], Colors.grey),
-                        ],
-                      ),
-
-                      _bigCard(
-                        title: "RolePlay",
-                        mainValue: roleplay.toString(),
-                        children: [
-                          _row("Totali", roleplay, Colors.blue),
-                          _row("", 0, Colors.transparent),
-                          _row("", 0, Colors.transparent),
-                          _row("", 0, Colors.transparent),
-                        ],
-                      ),
-                    ],
-                  );
-                },
+              _DashboardCardData(
+                title: "Aziende",
+                value: companies.toString(),
+                accentColor: Colors.blue,
               ),
-            ],
-          ),
+              _DashboardCardData(
+                title: "Corsi",
+                value: courses.toString(),
+                accentColor: Colors.blue,
+              ),
+              _DashboardCardData(
+                title: "Candidature",
+                value: applications.toString(),
+                accentColor: Colors.blue,
+              ),
+              _DashboardCardData(
+                title: "Offerte Job",
+                value: jobs["total"].toString(),
+                accentColor: Colors.blue,
+                details: [
+                  _DetailRow("Attive", jobs["active"]!, Colors.green),
+                  _DetailRow("Pending", jobs["pending"]!, Colors.orange),
+                  _DetailRow("Bloccate", jobs["blocked"]!, Colors.red),
+                  _DetailRow("Mese", jobs["month"]!, Colors.amber),
+                  _DetailRow("Scadute", jobs["expired"]!, Colors.grey),
+                ],
+              ),
+              _DashboardCardData(
+                title: "RolePlay",
+                value: roleplay.toString(),
+                accentColor: Colors.blue,
+              ),
+            ];
+
+            return SingleChildScrollView(
+              padding: const EdgeInsets.all(30),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  const Text(
+                    "Dashboard",
+                    style: TextStyle(
+                      fontSize: 26,
+                      fontWeight: FontWeight.bold,
+                    ),
+                  ),
+                  const SizedBox(height: 40),
+                  GridView.builder(
+                    shrinkWrap: true,
+                    physics: const NeverScrollableScrollPhysics(),
+                    itemCount: cards.length,
+                    gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
+                      crossAxisCount: crossAxisCount,
+                      crossAxisSpacing: 20,
+                      mainAxisSpacing: 20,
+                      mainAxisExtent: 200,
+                    ),
+                    itemBuilder: (context, index) {
+                      final card = cards[index];
+                      return _DashboardCard(
+                        title: card.title,
+                        value: card.value,
+                        accentColor: card.accentColor,
+                        details: card.details,
+                      );
+                    },
+                  ),
+                ],
+              ),
+            );
+          },
         ),
       ),
     );
   }
+}
 
-  static Widget _bigCard({
-    required String title,
-    required String mainValue,
-    required List<Widget> children,
-  }) {
+class _DashboardCardData {
+  final String title;
+  final String value;
+  final Color accentColor;
+  final List<_DetailRow>? details;
+
+  const _DashboardCardData({
+    required this.title,
+    required this.value,
+    required this.accentColor,
+    this.details,
+  });
+}
+
+class _DetailRow {
+  final String label;
+  final int value;
+  final Color color;
+
+  const _DetailRow(this.label, this.value, this.color);
+}
+
+class _DashboardCard extends StatelessWidget {
+  final String title;
+  final String value;
+  final Color accentColor;
+  final List<_DetailRow>? details;
+
+  const _DashboardCard({
+    required this.title,
+    required this.value,
+    required this.accentColor,
+    this.details,
+  });
+
+  @override
+  Widget build(BuildContext context) {
     return Container(
-      width: 300,
-      padding: const EdgeInsets.all(20),
+      padding: const EdgeInsets.all(22),
       decoration: BoxDecoration(
         color: Colors.white,
         borderRadius: BorderRadius.circular(14),
+        border: Border.all(color: accentColor.withValues(alpha: 0.4)),
         boxShadow: const [
           BoxShadow(
             color: Color(0x14000000),
             blurRadius: 10,
             offset: Offset(0, 6),
-          )
+          ),
         ],
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-
-          Text(title,
-              style: const TextStyle(
-                  fontSize: 16,
-                  fontWeight: FontWeight.bold)),
-
-          const SizedBox(height: 10),
-
           Text(
-            mainValue,
-            style: const TextStyle(
-              fontSize: 32,
+            title,
+            style: const TextStyle(fontSize: 14, color: Colors.black54),
+          ),
+          const SizedBox(height: 12),
+          Text(
+            value,
+            style: TextStyle(
+              fontSize: 28,
               fontWeight: FontWeight.bold,
+              color: accentColor,
             ),
           ),
-
-          const SizedBox(height: 16),
-
-          ...children,
-        ],
-      ),
-    );
-  }
-
-  static Widget _row(String label, int? value, Color color) {
-    return Padding(
-      padding: const EdgeInsets.only(bottom: 6),
-      child: Row(
-        mainAxisAlignment: MainAxisAlignment.spaceBetween,
-        children: [
-          Text(label),
-          Text(
-            "${value ?? 0}",
-            style: TextStyle(
-              color: color,
-              fontWeight: FontWeight.bold,
+          if (details != null && details!.isNotEmpty) ...[
+            const SizedBox(height: 12),
+            const Divider(height: 1),
+            const SizedBox(height: 8),
+            ...details!.map(
+              (d) => Padding(
+                padding: const EdgeInsets.only(bottom: 4),
+                child: Row(
+                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                  children: [
+                    Text(
+                      d.label,
+                      style: const TextStyle(
+                        fontSize: 12,
+                        color: Colors.black54,
+                      ),
+                    ),
+                    Text(
+                      "${d.value}",
+                      style: TextStyle(
+                        fontSize: 12,
+                        color: d.color,
+                        fontWeight: FontWeight.bold,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
             ),
-          )
+          ],
         ],
       ),
     );
