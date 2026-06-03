@@ -1,0 +1,3 @@
+# Script Linux (Netlify) devono avere fine riga LF
+*.sh text eol=lf
+netlify.toml text eol=lf

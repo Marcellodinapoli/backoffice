@@ -5,23 +5,33 @@ set -euo pipefail
 ROOT="$(cd "$(dirname "$0")/.." && pwd)"
 cd "$ROOT"
 
-FLUTTER_DIR="${FLUTTER_DIR:-$HOME/flutter}"
+# Cache tra deploy (Netlify conserva .cache se configurato in UI)
+CACHE_ROOT="${NETLIFY_BUILD_BASE:-$HOME}/.netlify_cache"
+FLUTTER_DIR="${CACHE_ROOT}/flutter"
+export PUB_CACHE="${CACHE_ROOT}/pub-cache"
 FLUTTER_CHANNEL="${FLUTTER_CHANNEL:-stable}"
 
 echo "==> Netlify build BackOffice (Flutter web)"
 echo "    Root: $ROOT"
+echo "    Flutter: $FLUTTER_DIR"
 echo "    Channel: $FLUTTER_CHANNEL"
 
-if [[ ! -d "$FLUTTER_DIR/bin" ]]; then
+if [[ ! -f "$FLUTTER_DIR/bin/flutter" ]]; then
   echo "==> Install Flutter ($FLUTTER_CHANNEL)..."
+  rm -rf "$FLUTTER_DIR"
   git clone https://github.com/flutter/flutter.git -b "$FLUTTER_CHANNEL" --depth 1 "$FLUTTER_DIR"
 fi
 
 export PATH="$FLUTTER_DIR/bin:$PATH"
 
 flutter --version
-flutter config --enable-web
+flutter config --enable-web --no-analytics
 flutter pub get
 flutter build web --release
 
-echo "==> Build OK: build/web"
+if [[ ! -f "$ROOT/build/web/index.html" ]]; then
+  echo "ERRORE: build/web/index.html mancante"
+  exit 1
+fi
+
+echo "==> Build OK: $ROOT/build/web"

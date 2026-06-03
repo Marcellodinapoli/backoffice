@@ -1,5 +1,12 @@
 # BackOffice Flutter Web — deploy Netlify
-# Publish directory: build/web (generato da flutter build web)
+#
+# In Netlify UI (Site configuration → Build & deploy) imposta:
+#   Build command:  (lascia vuoto per usare questo file)
+#   Publish directory: build/web
+#   Branch: main
+#
+# Se il build remoto fallisce, usa:
+#   powershell -File scripts/deploy_netlify_local.ps1
 
 [build]
   command = "bash scripts/netlify_build.sh"
@@ -7,6 +14,8 @@
 
 [build.environment]
   FLUTTER_CHANNEL = "stable"
+  # Evita warning analytics in CI
+  CI = "true"
 
 # Flutter web SPA: tutte le route → index.html
 [[redirects]]
