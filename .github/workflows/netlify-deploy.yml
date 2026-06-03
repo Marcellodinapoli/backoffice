@@ -28,11 +28,12 @@ jobs:
           flutter build web --release
           test -f build/web/index.html
 
-      - name: Deploy to Netlify
-        uses: nwtgck/actions-netlify-deploy@v2.1
+      - uses: actions/setup-node@v4
         with:
-          publish-dir: ./build/web
-          production-branch: main
-          production-deploy: true
-          netlify-auth-token: ${{ secrets.NETLIFY_AUTH_TOKEN }}
-          netlify-site-id: ${{ secrets.NETLIFY_SITE_ID }}
+          node-version: 20
+
+      - name: Deploy to Netlify
+        run: npx netlify-cli deploy --prod --dir=build/web
+        env:
+          NETLIFY_AUTH_TOKEN: ${{ secrets.NETLIFY_AUTH_TOKEN }}
+          NETLIFY_SITE_ID: ${{ secrets.NETLIFY_SITE_ID }}

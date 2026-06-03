@@ -3,8 +3,9 @@
 ## Perché il sito non si aggiorna
 
 1. **Push su GitHub ok, ma Netlify non collegato** al repo `Marcellodinapoli/backoffice` (branch `main`).
-2. **Build fallito** → in Netlify: *Deploys* → ultimo deploy → *Deploy log* (rosso).
-3. **`npm install` automatico** → disattivato in `netlify.toml` con `NETLIFY_SKIP_DEPENDENCIES_INSTALL`.
+2. **GitHub Actions fallito** → [Actions](https://github.com/Marcellodinapoli/backoffice/actions): serve configurare i secrets (vedi Opzione B).
+3. **Build fallito** → in Netlify: *Deploys* → ultimo deploy → *Deploy log* (rosso).
+4. **`npm install` automatico** → disattivato in `netlify.toml` con `NETLIFY_SKIP_DEPENDENCIES_INSTALL`.
 
 ## Opzione A — Deploy automatico da Netlify (Git)
 
