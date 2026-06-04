@@ -21,6 +21,8 @@ jobs:
   deploy:
     runs-on: ubuntu-latest
     timeout-minutes: 30
+    env:
+      FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: true
     steps:
       - uses: actions/checkout@v4
 
@@ -64,7 +66,7 @@ jobs:
       - uses: actions/setup-node@v4
         if: steps.cfg.outputs.method == 'cli'
         with:
-          node-version: 22
+          node-version: 24
 
       - name: Deploy to Netlify (CLI)
         if: steps.cfg.outputs.method == 'cli'
