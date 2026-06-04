@@ -5,7 +5,6 @@
 # Metodo A (consigliato, 1 secret):
 #   NETLIFY_BUILD_HOOK
 #   Netlify → sito backofficeadmin → Build & deploy → Build hooks → Add build hook
-#   → copia l'URL e incollalo come secret
 #
 # Metodo B (2 secrets):
 #   NETLIFY_AUTH_TOKEN  → Netlify → User settings → Applications → token
@@ -48,7 +47,7 @@ jobs:
           echo "  oppure NETLIFY_AUTH_TOKEN + NETLIFY_SITE_ID"
           exit 1
 
-      # --- Metodo A: build su GitHub Actions + upload su backofficeadmin ---
+      # --- Metodo B: build su GitHub Actions + upload su backofficeadmin ---
       - uses: subosito/flutter-action@v2
         if: steps.cfg.outputs.method == 'cli'
         with:
@@ -70,12 +69,11 @@ jobs:
 
       - name: Deploy to Netlify (CLI)
         if: steps.cfg.outputs.method == 'cli'
-        run: npx --yes netlify-cli deploy --prod --dir=build/web
+        run: npx --yes netlify-cli@17.38.4 deploy --prod --dir=build/web --site="${{ secrets.NETLIFY_SITE_ID }}"
         env:
           NETLIFY_AUTH_TOKEN: ${{ secrets.NETLIFY_AUTH_TOKEN }}
-          NETLIFY_SITE_ID: ${{ secrets.NETLIFY_SITE_ID }}
 
-      # --- Metodo B: avvia build su Netlify (repo + netlify.toml) ---
+      # --- Metodo A: avvia build su Netlify (repo + netlify.toml) ---
       - name: Trigger build su backofficeadmin
         if: steps.cfg.outputs.method == 'hook'
         run: |

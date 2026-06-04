@@ -40,7 +40,7 @@ class StorageService {
     final uploadTask = await startStorageUpload(
       ref: ref,
       file: file,
-      metadata: const SettableMetadata(
+      metadata: SettableMetadata(
         contentType: 'application/octet-stream',
       ),
     );
