@@ -23,8 +23,11 @@ class _BkWindowsAppPageState extends State<BkWindowsAppPage> {
   bool _uploading = false;
   double _uploadProgress = 0;
   bool _hydratedFromFirestore = false;
+  bool _showManualUrl = false;
   Timestamp? _lastUpdatedAt;
   int _releasesRefreshKey = 0;
+  String _cachedActiveVersion = '';
+  String _cachedActiveUrl = '';
 
   @override
   void initState() {
@@ -55,20 +58,48 @@ class _BkWindowsAppPageState extends State<BkWindowsAppPage> {
   void _applyConfig(Map<String, dynamic>? data) {
     if (data == null) return;
     _enabled = data['enabled'] as bool? ?? true;
-    _versionCtrl.text = (data['version'] ?? '1.0.0').toString();
-    _urlCtrl.text = (data['windowsDownloadUrl'] ?? '').toString();
+    _cachedActiveVersion = (data['version'] ?? '1.0.0').toString();
+    _cachedActiveUrl = _planetUrlFromConfig(data);
+    _versionCtrl.text = _cachedActiveVersion;
+    _urlCtrl.text = _cachedActiveUrl;
     _notesCtrl.text = (data['releaseNotes'] ?? '').toString();
   }
 
-  Future<void> _saveConfig({bool showSnack = true}) async {
-    final version = _versionCtrl.text.trim();
-    final url = _urlCtrl.text.trim();
+  String _effectiveVersion() {
+    final typed = _versionCtrl.text.trim();
+    if (typed.isNotEmpty) return typed;
+    return _cachedActiveVersion.trim();
+  }
+
+  String _effectiveDownloadUrl([Map<String, dynamic>? firestoreConfig]) {
+    final typed = _urlCtrl.text.trim();
+    if (typed.isNotEmpty) return typed;
+    if (firestoreConfig != null) {
+      final fromDb = _planetUrlFromConfig(firestoreConfig);
+      if (fromDb.isNotEmpty) return fromDb;
+    }
+    return _cachedActiveUrl.trim();
+  }
+
+  Future<void> _saveConfig({
+    bool showSnack = true,
+    Map<String, dynamic>? firestoreConfig,
+  }) async {
+    final version = _effectiveVersion();
+    final url = _effectiveDownloadUrl(firestoreConfig);
     if (version.isEmpty) {
       _snack('Inserisci la versione.', isError: true);
       return;
     }
+    if (_looksLikeFilePath(version)) {
+      _snack(
+        'Il campo versione accetta solo numeri (es. 1.0.2).',
+        isError: true,
+      );
+      return;
+    }
     if (url.isEmpty) {
-      _snack('Carica un installer .exe o incolla URL di download.', isError: true);
+      _snack('Carica prima il Setup.exe oppure attiva un file da Storage.', isError: true);
       return;
     }
 
@@ -90,10 +121,23 @@ class _BkWindowsAppPageState extends State<BkWindowsAppPage> {
     }
   }
 
+  bool _looksLikeFilePath(String value) {
+    return value.contains(r'\') ||
+        value.contains('/') ||
+        value.toLowerCase().contains('.exe');
+  }
+
   Future<void> _uploadSetupExe() async {
     final version = _versionCtrl.text.trim();
     if (version.isEmpty) {
       _snack('Inserisci la versione prima di caricare.', isError: true);
+      return;
+    }
+    if (_looksLikeFilePath(version)) {
+      _snack(
+        'Inserisci solo il numero versione (es. 1.0.2), non il percorso del file.',
+        isError: true,
+      );
       return;
     }
 
@@ -122,9 +166,12 @@ class _BkWindowsAppPageState extends State<BkWindowsAppPage> {
       if (mounted) {
         setState(() {
           _releasesRefreshKey++;
-          _versionCtrl.clear();
+          _cachedActiveVersion = uploaded.version;
+          _cachedActiveUrl = uploaded.downloadUrl;
+          _versionCtrl.text = uploaded.version;
+          _urlCtrl.text = uploaded.downloadUrl;
           _notesCtrl.clear();
-          _urlCtrl.clear();
+          _showManualUrl = false;
         });
         _snack(
           'Release v${uploaded.version} attiva: ${uploaded.fileName}',
@@ -149,6 +196,59 @@ class _BkWindowsAppPageState extends State<BkWindowsAppPage> {
     }
   }
 
+  Future<void> _confirmDeleteRelease(
+    DesktopReleaseZip zip, {
+    required bool isActive,
+  }) async {
+    if (isActive) {
+      _snack(
+        'Non puoi eliminare la release attiva. Attiva prima un\'altra versione.',
+        isError: true,
+      );
+      return;
+    }
+
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: const Text('Elimina installer'),
+        content: Text(
+          'Rimuovere ${zip.name} da Firebase Storage?\n'
+          'L\'operazione non è reversibile.',
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(ctx, false),
+            child: const Text('Annulla'),
+          ),
+          FilledButton(
+            style: FilledButton.styleFrom(backgroundColor: Colors.red.shade700),
+            onPressed: () => Navigator.pop(ctx, true),
+            child: const Text('Elimina'),
+          ),
+        ],
+      ),
+    );
+    if (confirmed != true || !mounted) return;
+
+    setState(() => _loading = true);
+    try {
+      await BkCreditCalcDesktopService.deleteReleaseInstaller(
+        storagePath: zip.storagePath,
+      );
+      if (mounted) {
+        setState(() => _releasesRefreshKey++);
+        _snack('${zip.name} eliminato da Storage.');
+      }
+    } catch (e) {
+      if (mounted) {
+        _snack('Eliminazione fallita: $e', isError: true);
+      }
+    } finally {
+      if (mounted) setState(() => _loading = false);
+    }
+  }
+
   Future<void> _activateRelease(DesktopReleaseZip zip) async {
     final version = BkCreditCalcDesktopService.versionFromZipName(zip.name);
     if (version == null) {
@@ -170,9 +270,12 @@ class _BkWindowsAppPageState extends State<BkWindowsAppPage> {
       if (mounted) {
         setState(() {
           _releasesRefreshKey++;
-          _versionCtrl.clear();
+          _cachedActiveVersion = version;
+          _cachedActiveUrl = zip.downloadUrl;
+          _versionCtrl.text = version;
+          _urlCtrl.text = zip.downloadUrl;
           _notesCtrl.clear();
-          _urlCtrl.clear();
+          _showManualUrl = false;
         });
         _snack('Release attiva su Planet: ${zip.name}');
       }
@@ -212,6 +315,115 @@ class _BkWindowsAppPageState extends State<BkWindowsAppPage> {
     } catch (_) {
       return null;
     }
+  }
+
+  Widget _buildActiveDownloadSection(Map<String, dynamic>? firestoreConfig) {
+    final url = _effectiveDownloadUrl(firestoreConfig);
+    final version = _effectiveVersion();
+
+    if (url.isEmpty) {
+      return Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text(
+            'Link download',
+            style: TextStyle(
+              fontSize: 13,
+              fontWeight: FontWeight.w600,
+              color: Colors.grey.shade800,
+            ),
+          ),
+          const SizedBox(height: 6),
+          Text(
+            'Compare qui dopo il caricamento del Setup.exe.',
+            style: TextStyle(fontSize: 13, color: Colors.grey.shade700),
+          ),
+          if (_showManualUrl) ...[
+            const SizedBox(height: 12),
+            TextField(
+              controller: _urlCtrl,
+              decoration: const InputDecoration(
+                labelText: 'URL download (solo se serve incollarlo)',
+                border: OutlineInputBorder(),
+              ),
+              onChanged: (_) => setState(() {}),
+            ),
+          ] else
+            TextButton.icon(
+              onPressed: () => setState(() => _showManualUrl = true),
+              icon: const Icon(Icons.link, size: 18),
+              label: const Text('Inserisci URL manualmente'),
+            ),
+        ],
+      );
+    }
+
+    return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.all(14),
+      decoration: BoxDecoration(
+        color: Colors.green.shade50,
+        borderRadius: BorderRadius.circular(10),
+        border: Border.all(color: Colors.green.shade200),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text(
+            version.isNotEmpty ? 'Release attiva · v$version' : 'Release attiva',
+            style: TextStyle(
+              fontWeight: FontWeight.w600,
+              color: Colors.green.shade900,
+            ),
+          ),
+          const SizedBox(height: 6),
+          Text(
+            'Gli utenti Planet scaricano da questo link:',
+            style: TextStyle(fontSize: 12, color: Colors.grey.shade800),
+          ),
+          const SizedBox(height: 8),
+          SelectableText(
+            url,
+            style: TextStyle(
+              fontSize: 11,
+              fontFamily: 'Consolas',
+              color: Colors.grey.shade900,
+            ),
+          ),
+          const SizedBox(height: 8),
+          Wrap(
+            spacing: 8,
+            children: [
+              TextButton.icon(
+                onPressed: () {
+                  Clipboard.setData(ClipboardData(text: url));
+                  _snack('Link copiato.');
+                },
+                icon: const Icon(Icons.copy, size: 18),
+                label: const Text('Copia link'),
+              ),
+              if (!_showManualUrl)
+                TextButton(
+                  onPressed: () => setState(() => _showManualUrl = true),
+                  child: const Text('Modifica URL'),
+                ),
+            ],
+          ),
+          if (_showManualUrl) ...[
+            const SizedBox(height: 8),
+            TextField(
+              controller: _urlCtrl,
+              decoration: const InputDecoration(
+                labelText: 'URL download',
+                border: OutlineInputBorder(),
+                isDense: true,
+              ),
+              onChanged: (_) => setState(() {}),
+            ),
+          ],
+        ],
+      ),
+    );
   }
 
   void _snack(String message, {bool isError = false}) {
@@ -279,24 +491,34 @@ class _BkWindowsAppPageState extends State<BkWindowsAppPage> {
                             ? null
                             : (v) => setState(() => _enabled = v),
                       ),
+                      const SizedBox(height: 12),
+                      Text(
+                        '1. Inserisci il numero della nuova versione (es. 1.0.3), non un percorso file.\n'
+                        '2. Clicca «Carica Setup.exe» e scegli l installer dalla cartella dist.\n'
+                        '3. Il link per Planet viene salvato automaticamente: non serve incollarlo.',
+                        style: TextStyle(
+                          fontSize: 13,
+                          height: 1.45,
+                          color: Colors.grey.shade800,
+                        ),
+                      ),
                       const SizedBox(height: 16),
                       TextField(
                         controller: _versionCtrl,
                         onChanged: (_) => setState(() {}),
                         decoration: InputDecoration(
-                          labelText: 'Versione release',
-                          hintText: 'es. 1.0.1',
+                          labelText: 'Numero versione',
+                          hintText: 'es. 1.0.3',
                           border: const OutlineInputBorder(),
                           helperText:
-                              'Deve essere maggiore della versione installata dagli utenti.',
-                          suffixText: _expectedSetupName(),
+                              'Deve essere maggiore della versione già installata dagli utenti.',
                         ),
                       ),
                       if (_expectedSetupName() != null) ...[
                         const SizedBox(height: 8),
-                        SelectableText(
-                          'File da caricare: ${_expectedSetupName()}\n'
-                          'Build locale: ${BkCreditCalcDesktopService.localSetupPathHint(_versionCtrl.text.trim())}',
+                        Text(
+                          'File atteso: ${_expectedSetupName()} · '
+                          'Build: ${BkCreditCalcDesktopService.localSetupPathHint(_versionCtrl.text.trim())}',
                           style: TextStyle(
                             fontSize: 12,
                             color: Colors.grey.shade700,
@@ -315,26 +537,7 @@ class _BkWindowsAppPageState extends State<BkWindowsAppPage> {
                         ),
                       ),
                       const SizedBox(height: 16),
-                      TextField(
-                        controller: _urlCtrl,
-                        decoration: InputDecoration(
-                          labelText: 'URL download Windows (Setup.exe)',
-                          border: const OutlineInputBorder(),
-                          suffixIcon: _urlCtrl.text.isEmpty
-                              ? null
-                              : IconButton(
-                                  tooltip: 'Copia URL',
-                                  icon: const Icon(Icons.copy),
-                                  onPressed: () {
-                                    Clipboard.setData(
-                                      ClipboardData(text: _urlCtrl.text),
-                                    );
-                                    _snack('URL copiato.');
-                                  },
-                                ),
-                        ),
-                        onChanged: (_) => setState(() {}),
-                      ),
+                      _buildActiveDownloadSection(firestoreConfig),
                       if (_uploading) ...[
                         const SizedBox(height: 16),
                         LinearProgressIndicator(value: _uploadProgress),
@@ -358,7 +561,9 @@ class _BkWindowsAppPageState extends State<BkWindowsAppPage> {
                           OutlinedButton.icon(
                             onPressed: _uploading || _loading
                                 ? null
-                                : () => _saveConfig(),
+                                : () => _saveConfig(
+                                      firestoreConfig: firestoreConfig,
+                                    ),
                             icon: _loading
                                 ? const SizedBox(
                                     width: 18,
@@ -370,10 +575,12 @@ class _BkWindowsAppPageState extends State<BkWindowsAppPage> {
                                 : const Icon(Icons.save),
                             label: const Text('Salva configurazione'),
                           ),
-                          if (_urlCtrl.text.trim().isNotEmpty)
+                          if (_effectiveDownloadUrl(firestoreConfig).isNotEmpty)
                             OutlinedButton.icon(
                               onPressed: () async {
-                                final uri = Uri.tryParse(_urlCtrl.text.trim());
+                                final uri = Uri.tryParse(
+                                  _effectiveDownloadUrl(firestoreConfig),
+                                );
                                 if (uri == null) return;
                                 await launchUrl(
                                   uri,
@@ -381,7 +588,7 @@ class _BkWindowsAppPageState extends State<BkWindowsAppPage> {
                                 );
                               },
                               icon: const Icon(Icons.open_in_new),
-                              label: const Text('Apri URL'),
+                              label: const Text('Apri link'),
                             ),
                         ],
                       ),
@@ -567,6 +774,26 @@ class _BkWindowsAppPageState extends State<BkWindowsAppPage> {
                                         );
                                         _snack('URL copiato.');
                                       },
+                                    ),
+                                    IconButton(
+                                      tooltip: isActive
+                                          ? 'Release attiva: non eliminabile'
+                                          : 'Elimina da Storage',
+                                      icon: Icon(
+                                        Icons.delete_outline,
+                                        size: 20,
+                                        color: isActive
+                                            ? Colors.grey.shade400
+                                            : Colors.red.shade700,
+                                      ),
+                                      onPressed: isActive ||
+                                              _loading ||
+                                              _uploading
+                                          ? null
+                                          : () => _confirmDeleteRelease(
+                                                zip,
+                                                isActive: isActive,
+                                              ),
                                     ),
                                     FilledButton.tonal(
                                       onPressed: isActive ||
