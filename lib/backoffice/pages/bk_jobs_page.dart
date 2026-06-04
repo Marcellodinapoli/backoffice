@@ -84,14 +84,19 @@ class BkJobsPage extends StatelessWidget {
 
   Widget _statRow(String label, int value, Color color) {
     return Padding(
-      padding: const EdgeInsets.only(bottom: 4),
+      padding: const EdgeInsets.only(bottom: 6),
       child: Row(
-        mainAxisAlignment: MainAxisAlignment.spaceBetween,
+        crossAxisAlignment: CrossAxisAlignment.baseline,
+        textBaseline: TextBaseline.alphabetic,
         children: [
-          Text(
-            label,
-            style: TextStyle(color: Colors.grey.shade700, fontSize: 14),
+          SizedBox(
+            width: 132,
+            child: Text(
+              label,
+              style: TextStyle(color: Colors.grey.shade700, fontSize: 14),
+            ),
           ),
+          const SizedBox(width: 12),
           Text(
             "$value",
             style: TextStyle(

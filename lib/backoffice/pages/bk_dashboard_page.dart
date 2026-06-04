@@ -213,7 +213,7 @@ class BkDashboardPage extends StatelessWidget {
                       crossAxisCount: crossAxisCount,
                       crossAxisSpacing: 20,
                       mainAxisSpacing: 20,
-                      mainAxisExtent: 200,
+                      mainAxisExtent: 228,
                     ),
                     itemBuilder: (context, index) {
                       final card = cards[index];
@@ -306,29 +306,33 @@ class _DashboardCard extends StatelessWidget {
             const SizedBox(height: 12),
             const Divider(height: 1),
             const SizedBox(height: 8),
-            ...details!.map(
-              (d) => Padding(
-                padding: const EdgeInsets.only(bottom: 4),
-                child: Row(
-                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                  children: [
-                    Text(
-                      d.label,
-                      style: const TextStyle(
-                        fontSize: 12,
-                        color: Colors.black54,
-                      ),
+            Expanded(
+              child: Column(
+                children: details!.map(
+                  (d) => Padding(
+                    padding: const EdgeInsets.only(bottom: 3),
+                    child: Row(
+                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                      children: [
+                        Text(
+                          d.label,
+                          style: const TextStyle(
+                            fontSize: 12,
+                            color: Colors.black54,
+                          ),
+                        ),
+                        Text(
+                          "${d.value}",
+                          style: TextStyle(
+                            fontSize: 12,
+                            color: d.color,
+                            fontWeight: FontWeight.bold,
+                          ),
+                        ),
+                      ],
                     ),
-                    Text(
-                      "${d.value}",
-                      style: TextStyle(
-                        fontSize: 12,
-                        color: d.color,
-                        fontWeight: FontWeight.bold,
-                      ),
-                    ),
-                  ],
-                ),
+                  ),
+                ).toList(),
               ),
             ),
           ],

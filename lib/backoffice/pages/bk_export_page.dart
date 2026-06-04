@@ -219,19 +219,61 @@ class BkExportPage extends StatelessWidget {
         required String label,
         required VoidCallback onTap,
       }) {
-    return Card(
-      color: const Color(0xFFF5F5F5),
-      margin: const EdgeInsets.only(bottom: 16.0),
-      child: ElevatedButton.icon(
-        style: ElevatedButton.styleFrom(
-          padding: const EdgeInsets.symmetric(vertical: 14, horizontal: 16),
-          backgroundColor: Colors.blue.shade600,
-          foregroundColor: Colors.white,
-          textStyle: const TextStyle(fontSize: 16),
+    const accent = Color(0xFF1565C0);
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 12),
+      child: Align(
+        alignment: Alignment.centerLeft,
+        child: ConstrainedBox(
+          constraints: const BoxConstraints(maxWidth: 400),
+          child: Material(
+            color: Colors.white,
+            elevation: 1,
+            shadowColor: const Color(0x1A000000),
+            shape: RoundedRectangleBorder(
+              borderRadius: BorderRadius.circular(12),
+              side: BorderSide(color: accent.withValues(alpha: 0.22)),
+            ),
+            child: InkWell(
+              onTap: onTap,
+              borderRadius: BorderRadius.circular(12),
+              child: Padding(
+                padding:
+                    const EdgeInsets.symmetric(horizontal: 18, vertical: 14),
+                child: Row(
+                  children: [
+                    Container(
+                      width: 40,
+                      height: 40,
+                      alignment: Alignment.center,
+                      decoration: BoxDecoration(
+                        color: accent.withValues(alpha: 0.08),
+                        borderRadius: BorderRadius.circular(10),
+                      ),
+                      child: Icon(icon, color: accent, size: 22),
+                    ),
+                    const SizedBox(width: 14),
+                    Expanded(
+                      child: Text(
+                        label,
+                        style: const TextStyle(
+                          fontSize: 15,
+                          fontWeight: FontWeight.w600,
+                          color: Color(0xFF212121),
+                        ),
+                      ),
+                    ),
+                    Icon(
+                      Icons.file_download_outlined,
+                      size: 20,
+                      color: Colors.grey.shade600,
+                    ),
+                  ],
+                ),
+              ),
+            ),
+          ),
         ),
-        icon: Icon(icon, size: 24),
-        label: Text(label),
-        onPressed: onTap,
       ),
     );
   }

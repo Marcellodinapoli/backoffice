@@ -232,6 +232,13 @@ class BkCreditCalcDesktopService {
     return items;
   }
 
+  /// Rimuove un installer da Firebase Storage (`downloads/credit_calc/...`).
+  static Future<void> deleteReleaseInstaller({
+    required String storagePath,
+  }) async {
+    await FirebaseStorage.instance.ref(storagePath).delete();
+  }
+
   /// Estrae `1.0.1` da `CreditCalc-1.0.1-Setup.exe` o `CreditCalc-1.0.1-win64.zip`.
   static String? versionFromZipName(String fileName) {
     final setup = RegExp(r'CreditCalc-(\d+\.\d+\.\d+)-Setup\.exe',

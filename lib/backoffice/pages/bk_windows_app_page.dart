@@ -122,7 +122,7 @@ class _BkWindowsAppPageState extends State<BkWindowsAppPage> {
   }
 
   bool _looksLikeFilePath(String value) {
-    return value.contains(r'\') ||
+    return value.contains('\\') ||
         value.contains('/') ||
         value.toLowerCase().contains('.exe');
   }
