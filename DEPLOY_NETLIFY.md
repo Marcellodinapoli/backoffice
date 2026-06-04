@@ -21,16 +21,24 @@ In [Netlify](https://app.netlify.com) → sito → **Site configuration** → **
 
 Poi **Trigger deploy** → **Deploy site**.
 
-## Opzione B — GitHub Actions (consigliata se A non parte)
+## Opzione B — GitHub Actions → backofficeadmin.netlify.app
 
-1. Netlify → **User settings** → **Applications** → crea **Personal access token**.
-2. Netlify → sito → **Site configuration** → **Site details** → copia **Site ID** (API ID).
-3. GitHub → repo → **Settings** → **Secrets and variables** → **Actions** → aggiungi:
-   - `NETLIFY_AUTH_TOKEN`
-   - `NETLIFY_SITE_ID`
-4. Push su `main`: il workflow `.github/workflows/netlify-deploy.yml` builda e pubblica.
+Sito: **https://backofficeadmin.netlify.app**
 
-Controlla esito in GitHub → tab **Actions**.
+GitHub → [Settings → Secrets → Actions](https://github.com/Marcellodinapoli/backoffice/settings/secrets/actions)
+
+### B1 — Build hook (1 secret, consigliato)
+
+1. Netlify → sito **backofficeadmin** → **Build & deploy** → **Build hooks** → **Add build hook** (branch `main`)
+2. Copia l’URL → secret `NETLIFY_BUILD_HOOK`
+3. Push su `main` oppure **Actions** → **Deploy Netlify** → **Run workflow**
+
+### B2 — Token + Site ID (2 secrets)
+
+1. `NETLIFY_AUTH_TOKEN` — Netlify → User settings → Applications
+2. `NETLIFY_SITE_ID` — backofficeadmin → Site details → **API ID**
+
+Il workflow builda Flutter su GitHub e carica `build/web` su Netlify.
 
 ## Opzione C — Deploy manuale da Windows
 
