@@ -111,10 +111,10 @@ class BkCreditCalcDesktopService {
     return (config['windowsDownloadUrl'] ?? '').toString().trim();
   }
 
-  /// Estrae `1.0.2` da `CreditCalc-1.0.2-Setup.exe`.
+  /// Estrae `1.0.2` da `CreditCalc-1.0.2-Setup.exe` (tollera anche `1.0.2.-Setup`).
   static String? versionFromSetupFileName(String fileName) {
     final match = RegExp(
-      r'CreditCalc-(\d+\.\d+\.\d+)-Setup\.exe',
+      r'CreditCalc-(\d+\.\d+\.\d+)\.?-Setup\.exe',
       caseSensitive: false,
     ).firstMatch(fileName);
     return match?.group(1);
@@ -267,15 +267,24 @@ class BkCreditCalcDesktopService {
 
   /// Estrae `1.0.1` da `CreditCalc-1.0.1-Setup.exe` o `CreditCalc-1.0.1-win64.zip`.
   static String? versionFromZipName(String fileName) {
-    final setup = RegExp(r'CreditCalc-(\d+\.\d+\.\d+)-Setup\.exe',
-            caseSensitive: false)
-        .firstMatch(fileName);
+    final setup = RegExp(
+      r'CreditCalc-(\d+\.\d+\.\d+)\.?-Setup\.exe',
+      caseSensitive: false,
+    ).firstMatch(fileName);
     if (setup != null) return setup.group(1);
 
-    final zip = RegExp(r'CreditCalc-(\d+\.\d+\.\d+)-win64\.zip',
-            caseSensitive: false)
-        .firstMatch(fileName);
-    return zip?.group(1);
+    final zip = RegExp(
+      r'CreditCalc-(\d+\.\d+\.\d+)-win64\.zip',
+      caseSensitive: false,
+    ).firstMatch(fileName);
+    if (zip != null) return zip.group(1);
+
+    if (fileName.toLowerCase().contains('creditcalc')) {
+      final loose = RegExp(r'(\d+\.\d+\.\d+)').firstMatch(fileName);
+      return loose?.group(1);
+    }
+
+    return null;
   }
 
   static bool isInstallerFileName(String fileName) =>
