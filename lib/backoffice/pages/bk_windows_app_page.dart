@@ -512,6 +512,21 @@ class _BkWindowsAppPageState extends State<BkWindowsAppPage> {
                             ? null
                             : _onDownloadEnabledChanged,
                       ),
+                      ListTile(
+                        contentPadding: EdgeInsets.zero,
+                        leading: Icon(
+                          Icons.download_outlined,
+                          color: Colors.grey.shade700,
+                        ),
+                        title: const Text('Download totali'),
+                        subtitle: Text(
+                          BkCreditCalcDesktopService.formatDownloadCount(
+                            BkCreditCalcDesktopService.downloadCountFromConfig(
+                              firestoreConfig,
+                            ),
+                          ),
+                        ),
+                      ),
                       const SizedBox(height: 12),
                       Text(
                         '1. Inserisci il numero della nuova versione (es. 1.0.3), non un percorso file.\n'

@@ -90,6 +90,20 @@ class BkCreditCalcDesktopService {
     return match?.group(1);
   }
 
+  static int downloadCountFromConfig(Map<String, dynamic>? config) {
+    if (config == null) return 0;
+    final raw = config['downloadCount'];
+    if (raw is int) return raw;
+    if (raw is num) return raw.toInt();
+    return int.tryParse(raw?.toString() ?? '') ?? 0;
+  }
+
+  static String formatDownloadCount(int count) {
+    if (count == 0) return 'Nessun download registrato';
+    if (count == 1) return '1 download effettuato';
+    return '$count download effettuati';
+  }
+
   /// URL usato da CreditCalc/Planet (installer ha priorità).
   static String planetDownloadUrl(Map<String, dynamic> config) {
     final installer = (config['windowsInstallerUrl'] ?? '').toString().trim();
