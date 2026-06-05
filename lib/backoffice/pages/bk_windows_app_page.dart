@@ -80,6 +80,28 @@ class _BkWindowsAppPageState extends State<BkWindowsAppPage> {
     return _cachedActiveUrl.trim();
   }
 
+  Future<void> _onDownloadEnabledChanged(bool value) async {
+    setState(() => _enabled = value);
+    setState(() => _loading = true);
+    try {
+      await BkCreditCalcDesktopService.setDownloadEnabled(value);
+      if (mounted) {
+        _snack(
+          value
+              ? 'Download abilitato su Planet.'
+              : 'Download disabilitato su Planet.',
+        );
+      }
+    } catch (e) {
+      if (mounted) {
+        setState(() => _enabled = !value);
+        _snack('Errore salvataggio: $e', isError: true);
+      }
+    } finally {
+      if (mounted) setState(() => _loading = false);
+    }
+  }
+
   Future<void> _saveConfig({
     bool showSnack = true,
     Map<String, dynamic>? firestoreConfig,
@@ -483,12 +505,12 @@ class _BkWindowsAppPageState extends State<BkWindowsAppPage> {
                         contentPadding: EdgeInsets.zero,
                         title: const Text('Download abilitato'),
                         subtitle: const Text(
-                          'Se disattivato, l app desktop non propone aggiornamenti.',
+                          'Disattivato = niente tasto «Scarica» su Planet. Si salva subito.',
                         ),
                         value: _enabled,
                         onChanged: _loading || _uploading
                             ? null
-                            : (v) => setState(() => _enabled = v),
+                            : _onDownloadEnabledChanged,
                       ),
                       const SizedBox(height: 12),
                       Text(

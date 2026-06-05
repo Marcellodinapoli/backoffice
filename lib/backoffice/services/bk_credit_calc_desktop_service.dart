@@ -68,6 +68,18 @@ class BkCreditCalcDesktopService {
     await _doc.set(data, SetOptions(merge: true));
   }
 
+  /// Aggiorna solo il flag visibile su Planet (merge, senza richiedere URL/versione).
+  static Future<void> setDownloadEnabled(bool enabled) async {
+    await _doc.set(
+      {
+        'enabled': enabled,
+        'updatedAt': FieldValue.serverTimestamp(),
+        'updatedBy': 'backoffice',
+      },
+      SetOptions(merge: true),
+    );
+  }
+
   /// Nome file attivo per Planet (da config Firestore).
   static String? activeFileNameFromConfig(Map<String, dynamic>? config) {
     if (config == null) return null;
