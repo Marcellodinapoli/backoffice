@@ -12,7 +12,16 @@ class BkCreditCalcDesktopService {
   static const firestorePath = 'platform_config/credit_calc_desktop';
   static const storageFolder = 'downloads/credit_calc';
 
-  /// Installer consigliato (Inno Setup): `CreditCalc-1.0.1-Setup.exe`.
+  /// Pacchetto MSIX (formato consigliato): `CreditCalc-1.0.2.msix`.
+  static String msixObjectName(String version) {
+    final safeVersion = version.trim().replaceAll(RegExp(r'[^0-9.]'), '');
+    if (safeVersion.isEmpty) {
+      throw ArgumentError('Versione non valida.');
+    }
+    return 'CreditCalc-$safeVersion.msix';
+  }
+
+  /// Legacy Inno Setup (solo elenco Storage).
   static String setupObjectName(String version) {
     final safeVersion = version.trim().replaceAll(RegExp(r'[^0-9.]'), '');
     if (safeVersion.isEmpty) {
@@ -21,7 +30,9 @@ class BkCreditCalcDesktopService {
     return 'CreditCalc-$safeVersion-Setup.exe';
   }
 
-  /// Percorso locale dopo build con Inno Setup.
+  static String localMsixPathHint(String version) =>
+      'creditcalc-tool/dist/${msixObjectName(version)}';
+
   static String localSetupPathHint(String version) =>
       'creditcalc-tool/dist/${setupObjectName(version)}';
 
@@ -57,9 +68,8 @@ class BkCreditCalcDesktopService {
     final installer = windowsInstallerUrl?.trim() ?? '';
     if (installer.isNotEmpty) {
       data['windowsInstallerUrl'] = installer;
-      // Planet legge prima l installer: allinea anche il campo legacy.
       data['windowsDownloadUrl'] = installer;
-    } else if (url.toLowerCase().contains('-setup.exe')) {
+    } else if (_isReleasePackageUrl(url)) {
       data['windowsInstallerUrl'] = url;
     } else {
       data['windowsInstallerUrl'] = FieldValue.delete();
@@ -78,6 +88,11 @@ class BkCreditCalcDesktopService {
       },
       SetOptions(merge: true),
     );
+  }
+
+  static bool _isReleasePackageUrl(String url) {
+    final lower = url.toLowerCase();
+    return lower.contains('.msix') || lower.contains('-setup.exe');
   }
 
   /// Nome file attivo per Planet (da config Firestore).
@@ -111,6 +126,14 @@ class BkCreditCalcDesktopService {
     return (config['windowsDownloadUrl'] ?? '').toString().trim();
   }
 
+  static String? versionFromMsixFileName(String fileName) {
+    final match = RegExp(
+      r'CreditCalc-(\d+\.\d+\.\d+)\.msix',
+      caseSensitive: false,
+    ).firstMatch(fileName);
+    return match?.group(1);
+  }
+
   /// Estrae `1.0.2` da `CreditCalc-1.0.2-Setup.exe` (tollera anche `1.0.2.-Setup`).
   static String? versionFromSetupFileName(String fileName) {
     final match = RegExp(
@@ -120,31 +143,35 @@ class BkCreditCalcDesktopService {
     return match?.group(1);
   }
 
-  /// Carica solo l installer Setup.exe (consigliato per Planet).
-  /// La versione viene letta dal nome file se possibile.
+  /// Carica CreditCalc-X.Y.Z.msix su Storage e attiva su Firestore.
+  static Future<DesktopUploadResult> uploadReleaseMsix({
+    required String version,
+    required void Function(double progress) onProgress,
+  }) =>
+      _pickAndUploadMsix(version: version, onProgress: onProgress);
+
   static Future<DesktopUploadResult> uploadReleaseInstaller({
     required String version,
     required void Function(double progress) onProgress,
   }) =>
-      _pickAndUploadSetupExe(version: version, onProgress: onProgress);
+      uploadReleaseMsix(version: version, onProgress: onProgress);
 
-  /// Carica solo CreditCalc-*-Setup.exe su Storage.
   static Future<DesktopUploadResult> uploadReleasePackage({
     required String version,
     required void Function(double progress) onProgress,
   }) =>
-      uploadReleaseInstaller(version: version, onProgress: onProgress);
+      uploadReleaseMsix(version: version, onProgress: onProgress);
 
-  static Future<DesktopUploadResult> _pickAndUploadSetupExe({
+  static Future<DesktopUploadResult> _pickAndUploadMsix({
     required String version,
     required void Function(double progress) onProgress,
   }) async {
     final result = await FilePicker.platform.pickFiles(
       type: FileType.custom,
-      allowedExtensions: ['exe'],
+      allowedExtensions: ['msix'],
       withData: true,
       allowMultiple: false,
-      dialogTitle: 'Seleziona CreditCalc-1.0.2-Setup.exe',
+      dialogTitle: 'Seleziona CreditCalc-X.Y.Z.msix',
     );
     if (result == null || result.files.isEmpty) {
       throw Exception('Nessun file selezionato.');
@@ -154,34 +181,34 @@ class BkCreditCalcDesktopService {
     final name = file.name.toLowerCase();
     if (name.endsWith('.zip')) {
       throw Exception(
-        'Hai selezionato uno ZIP. Scegli il file Setup.exe '
-        '(es. CreditCalc-1.0.2-Setup.exe).',
+        'Hai selezionato uno ZIP. Scegli il file MSIX '
+        '(es. CreditCalc-1.0.2.msix).',
       );
     }
-    if (!name.endsWith('.exe') || !name.contains('-setup')) {
+    if (!name.endsWith('.msix')) {
       throw Exception(
-        'Seleziona CreditCalc-X.Y.Z-Setup.exe dalla cartella dist.',
+        'Seleziona CreditCalc-X.Y.Z.msix dalla cartella creditcalc-tool/dist.',
       );
     }
 
-    final fromFile = versionFromSetupFileName(file.name);
-    final resolvedVersion = (fromFile ?? version.trim());
+    final fromFile = versionFromMsixFileName(file.name);
+    final resolvedVersion = fromFile ?? version.trim();
     if (resolvedVersion.isEmpty) {
       throw Exception(
-        'Inserisci la versione (es. 1.0.2) o usa un file CreditCalc-1.0.2-Setup.exe.',
+        'Inserisci la versione (es. 1.0.2) o usa CreditCalc-1.0.2.msix.',
       );
     }
 
     final url = await _uploadFileToStorage(
       file: file,
-      storagePath: '$storageFolder/${setupObjectName(resolvedVersion)}',
-      contentType: 'application/octet-stream',
+      storagePath: '$storageFolder/${msixObjectName(resolvedVersion)}',
+      contentType: 'application/msix',
       onProgress: onProgress,
     );
     return DesktopUploadResult(
       downloadUrl: url,
       version: resolvedVersion,
-      fileName: setupObjectName(resolvedVersion),
+      fileName: msixObjectName(resolvedVersion),
     );
   }
 
@@ -223,14 +250,13 @@ class BkCreditCalcDesktopService {
     return snapshot.ref.getDownloadURL();
   }
 
-  /// Carica Setup.exe (alias legacy uploadReleaseZip).
   static Future<DesktopUploadResult> uploadReleaseZip({
     required String version,
     required void Function(double progress) onProgress,
   }) =>
-      uploadReleasePackage(version: version, onProgress: onProgress);
+      uploadReleaseMsix(version: version, onProgress: onProgress);
 
-  /// Elenco installer Setup.exe su Storage (`downloads/credit_calc/`).
+  /// MSIX e Setup.exe legacy su Storage.
   static Future<List<DesktopReleaseZip>> listReleaseZips() async {
     final ref = FirebaseStorage.instance.ref(storageFolder);
     final list = await ref.listAll();
@@ -238,7 +264,7 @@ class BkCreditCalcDesktopService {
 
     for (final item in list.items) {
       final lower = item.name.toLowerCase();
-      if (!lower.endsWith('.exe')) continue;
+      if (!lower.endsWith('.msix') && !lower.endsWith('.exe')) continue;
       final meta = await item.getMetadata();
       items.add(
         DesktopReleaseZip(
@@ -258,20 +284,18 @@ class BkCreditCalcDesktopService {
     return items;
   }
 
-  /// Rimuove un installer da Firebase Storage (`downloads/credit_calc/...`).
   static Future<void> deleteReleaseInstaller({
     required String storagePath,
   }) async {
     await FirebaseStorage.instance.ref(storagePath).delete();
   }
 
-  /// Estrae `1.0.1` da `CreditCalc-1.0.1-Setup.exe` o `CreditCalc-1.0.1-win64.zip`.
   static String? versionFromZipName(String fileName) {
-    final setup = RegExp(
-      r'CreditCalc-(\d+\.\d+\.\d+)\.?-Setup\.exe',
-      caseSensitive: false,
-    ).firstMatch(fileName);
-    if (setup != null) return setup.group(1);
+    final msix = versionFromMsixFileName(fileName);
+    if (msix != null) return msix;
+
+    final setup = versionFromSetupFileName(fileName);
+    if (setup != null) return setup;
 
     final zip = RegExp(
       r'CreditCalc-(\d+\.\d+\.\d+)-win64\.zip',
@@ -287,8 +311,16 @@ class BkCreditCalcDesktopService {
     return null;
   }
 
+  static bool isMsixFileName(String fileName) =>
+      fileName.toLowerCase().endsWith('.msix');
+
   static bool isInstallerFileName(String fileName) =>
       fileName.toLowerCase().endsWith('.exe');
+
+  static bool isReleasePackageFileName(String fileName) {
+    final lower = fileName.toLowerCase();
+    return lower.endsWith('.msix') || lower.contains('-setup.exe');
+  }
 }
 
 class DesktopUploadResult {
