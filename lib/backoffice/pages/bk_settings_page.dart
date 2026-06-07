@@ -9,7 +9,7 @@ class BkSettingsPage extends StatefulWidget {
 }
 
 class _BkSettingsPageState extends State<BkSettingsPage> {
-  bool notificationsEnabled = true;
+  bool _savingMaintenance = false;
 
   static const _sections = [
     'Tutto',
@@ -22,8 +22,14 @@ class _BkSettingsPageState extends State<BkSettingsPage> {
   static DocumentReference<Map<String, dynamic>> get _maintenanceDoc =>
       FirebaseFirestore.instance.collection('settings').doc('maintenance');
 
+  static DocumentReference<Map<String, dynamic>> get _notificationsDoc =>
+      FirebaseFirestore.instance.collection('settings').doc('notifications');
+
   static Stream<DocumentSnapshot<Map<String, dynamic>>> _watchMaintenance() =>
       _maintenanceDoc.snapshots();
+
+  static Stream<DocumentSnapshot<Map<String, dynamic>>> _watchNotifications() =>
+      _notificationsDoc.snapshots();
 
   bool _readEnabled(Map<String, dynamic>? data) {
     if (data == null) return false;
@@ -47,14 +53,71 @@ class _BkSettingsPageState extends State<BkSettingsPage> {
     required bool enabled,
     required String section,
   }) async {
+    setState(() => _savingMaintenance = true);
     try {
       await _maintenanceDoc.set({
         'section': section,
         'enabled': enabled,
         'updatedAt': FieldValue.serverTimestamp(),
-      });
+        'updatedBy': 'backoffice',
+      }, SetOptions(merge: true));
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(
+            enabled
+                ? 'Manutenzione attiva su: $section'
+                : 'Manutenzione disattivata',
+          ),
+        ),
+      );
+    } on FirebaseException catch (e) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          backgroundColor: Colors.red.shade700,
+          content: Text(
+            'Salvataggio manutenzione rifiutato (${e.code}). '
+            'Verifica di essere admin Firebase.',
+          ),
+        ),
+      );
     } catch (e) {
-      debugPrint('Errore salvataggio maintenance: $e');
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          backgroundColor: Colors.red.shade700,
+          content: Text('Errore salvataggio manutenzione: $e'),
+        ),
+      );
+    } finally {
+      if (mounted) setState(() => _savingMaintenance = false);
+    }
+  }
+
+  Future<void> _saveNotificationsEnabled(bool enabled) async {
+    try {
+      await _notificationsDoc.set({
+        'enabled': enabled,
+        'updatedAt': FieldValue.serverTimestamp(),
+        'updatedBy': 'backoffice',
+      }, SetOptions(merge: true));
+    } on FirebaseException catch (e) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          backgroundColor: Colors.red.shade700,
+          content: Text('Salvataggio notifiche rifiutato (${e.code}).'),
+        ),
+      );
+    } catch (e) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          backgroundColor: Colors.red.shade700,
+          content: Text('Errore salvataggio notifiche: $e'),
+        ),
+      );
     }
   }
 
@@ -188,7 +251,9 @@ class _BkSettingsPageState extends State<BkSettingsPage> {
                     ),
                   )
                   .toList(),
-              onChanged: (value) {
+              onChanged: _savingMaintenance
+                  ? null
+                  : (value) {
                 final section = value ?? 'Tutto';
                 _saveMaintenanceSettings(
                   enabled: maintenanceMode,
@@ -204,7 +269,9 @@ class _BkSettingsPageState extends State<BkSettingsPage> {
               'Blocca temporaneamente l\'accesso a: $selectedSection',
             ),
             value: maintenanceMode,
-            onChanged: (value) {
+            onChanged: _savingMaintenance
+                ? null
+                : (value) {
               _saveMaintenanceSettings(
                 enabled: value,
                 section: selectedSection,
@@ -243,18 +310,22 @@ class _BkSettingsPageState extends State<BkSettingsPage> {
           },
         ),
         const SizedBox(height: 12),
-        Card(
-          color: const Color(0xFFF5F5F5),
-          child: SwitchListTile(
-            title: const Text('Notifiche attive'),
-            subtitle: const Text('Abilita o disabilita le notifiche di sistema'),
-            value: notificationsEnabled,
-            onChanged: (value) {
-              setState(() {
-                notificationsEnabled = value;
-              });
-            },
-          ),
+        StreamBuilder<DocumentSnapshot<Map<String, dynamic>>>(
+          stream: _watchNotifications(),
+          builder: (context, snap) {
+            final notificationsEnabled = _readEnabled(snap.data?.data());
+            return Card(
+              color: const Color(0xFFF5F5F5),
+              child: SwitchListTile(
+                title: const Text('Notifiche attive'),
+                subtitle: const Text(
+                  'Abilita o disabilita le notifiche di sistema (salvato su Firestore)',
+                ),
+                value: notificationsEnabled,
+                onChanged: (value) => _saveNotificationsEnabled(value),
+              ),
+            );
+          },
         ),
         const SizedBox(height: 12),
         Card(
