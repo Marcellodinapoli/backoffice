@@ -266,7 +266,8 @@ class _BkSettingsPageState extends State<BkSettingsPage> {
           SwitchListTile(
             title: const Text('Modalità manutenzione'),
             subtitle: Text(
-              'Blocca temporaneamente l\'accesso a: $selectedSection',
+              'Blocca temporaneamente l\'accesso a: $selectedSection\n'
+              'Salvato su Firestore: Planet e BackOffice app si aggiornano in tempo reale.',
             ),
             value: maintenanceMode,
             onChanged: _savingMaintenance
