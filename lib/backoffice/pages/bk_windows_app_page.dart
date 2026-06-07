@@ -58,7 +58,7 @@ class _BkWindowsAppPageState extends State<BkWindowsAppPage> {
     if (data == null) return;
     _enabled = data['enabled'] as bool? ?? true;
     _cachedActiveVersion = (data['version'] ?? '1.0.0').toString();
-    _cachedActiveUrl = _planetUrlFromConfig(data);
+    _cachedActiveUrl = BkCreditCalcDesktopService.planetDownloadUrl(data);
     _versionCtrl.text = _cachedActiveVersion;
     _urlCtrl.text = _cachedActiveUrl;
     _notesCtrl.text = (data['releaseNotes'] ?? '').toString();
@@ -74,7 +74,7 @@ class _BkWindowsAppPageState extends State<BkWindowsAppPage> {
     final typed = _urlCtrl.text.trim();
     if (typed.isNotEmpty) return typed;
     if (firestoreConfig != null) {
-      final fromDb = _planetUrlFromConfig(firestoreConfig);
+      final fromDb = BkCreditCalcDesktopService.planetDownloadUrl(firestoreConfig);
       if (fromDb.isNotEmpty) return fromDb;
     }
     return _cachedActiveUrl.trim();
@@ -119,8 +119,15 @@ class _BkWindowsAppPageState extends State<BkWindowsAppPage> {
       );
       return;
     }
-    if (url.isEmpty) {
-      _snack('Carica prima il MSIX oppure attiva un file da Storage.', isError: true);
+    if (url.isEmpty && firestoreConfig != null) {
+      final hasFiles = BkCreditCalcDesktopService.setupUrlFromConfig(firestoreConfig).isNotEmpty ||
+          BkCreditCalcDesktopService.msixUrlFromConfig(firestoreConfig).isNotEmpty;
+      if (!hasFiles) {
+        _snack('Carica prima Setup.exe o MSIX, oppure attiva un file da Storage.', isError: true);
+        return;
+      }
+    } else if (url.isEmpty && firestoreConfig == null) {
+      _snack('Carica prima Setup.exe o MSIX, oppure attiva un file da Storage.', isError: true);
       return;
     }
 
@@ -129,7 +136,6 @@ class _BkWindowsAppPageState extends State<BkWindowsAppPage> {
       await BkCreditCalcDesktopService.saveConfig(
         enabled: _enabled,
         version: version,
-        windowsDownloadUrl: url,
         releaseNotes: _notesCtrl.text,
       );
       if (showSnack && mounted) {
@@ -150,7 +156,9 @@ class _BkWindowsAppPageState extends State<BkWindowsAppPage> {
         lower.contains('.msix');
   }
 
-  Future<void> _uploadMsix() async {
+  Future<void> _uploadPackage({
+    required Future<DesktopUploadResult> Function() upload,
+  }) async {
     final version = _versionCtrl.text.trim();
     if (version.isEmpty) {
       _snack('Inserisci la versione prima di caricare.', isError: true);
@@ -158,7 +166,7 @@ class _BkWindowsAppPageState extends State<BkWindowsAppPage> {
     }
     if (_looksLikeFilePath(version)) {
       _snack(
-        'Inserisci solo il numero versione (es. 1.0.2), non il percorso del file.',
+        'Inserisci solo il numero versione (es. 1.0.5), non il percorso del file.',
         isError: true,
       );
       return;
@@ -173,18 +181,19 @@ class _BkWindowsAppPageState extends State<BkWindowsAppPage> {
     });
 
     try {
-      final uploaded = await BkCreditCalcDesktopService.uploadReleaseMsix(
-        version: version,
-        onProgress: (p) {
-          if (mounted) setState(() => _uploadProgress = p);
-        },
-      );
+      final uploaded = await upload();
       await BkCreditCalcDesktopService.saveConfig(
         enabled: enabled,
         version: uploaded.version,
-        windowsDownloadUrl: uploaded.downloadUrl,
-        windowsInstallerUrl: uploaded.downloadUrl,
         releaseNotes: notes,
+        windowsInstallerUrl: uploaded.kind == DesktopPackageKind.setup
+            ? uploaded.downloadUrl
+            : null,
+        windowsMsixUrl: uploaded.kind == DesktopPackageKind.msix
+            ? uploaded.downloadUrl
+            : null,
+        updateInstaller: uploaded.kind == DesktopPackageKind.setup,
+        updateMsix: uploaded.kind == DesktopPackageKind.msix,
       );
       if (mounted) {
         setState(() {
@@ -193,11 +202,10 @@ class _BkWindowsAppPageState extends State<BkWindowsAppPage> {
           _cachedActiveUrl = uploaded.downloadUrl;
           _versionCtrl.text = uploaded.version;
           _urlCtrl.text = uploaded.downloadUrl;
-          _notesCtrl.clear();
           _showManualUrl = false;
         });
         _snack(
-          'Release v${uploaded.version} attiva: ${uploaded.fileName}',
+          '${uploaded.fileName} caricato e attivo (v${uploaded.version}).',
         );
       }
     } on FirebaseException catch (e) {
@@ -218,6 +226,24 @@ class _BkWindowsAppPageState extends State<BkWindowsAppPage> {
       }
     }
   }
+
+  Future<void> _uploadSetup() => _uploadPackage(
+        upload: () => BkCreditCalcDesktopService.uploadReleaseSetup(
+          version: _versionCtrl.text.trim(),
+          onProgress: (p) {
+            if (mounted) setState(() => _uploadProgress = p);
+          },
+        ),
+      );
+
+  Future<void> _uploadMsix() => _uploadPackage(
+        upload: () => BkCreditCalcDesktopService.uploadReleaseMsix(
+          version: _versionCtrl.text.trim(),
+          onProgress: (p) {
+            if (mounted) setState(() => _uploadProgress = p);
+          },
+        ),
+      );
 
   Future<void> _confirmDeleteRelease(
     DesktopReleaseZip zip, {
@@ -281,14 +307,16 @@ class _BkWindowsAppPageState extends State<BkWindowsAppPage> {
 
     setState(() => _loading = true);
     try {
-      final isPackage =
-          BkCreditCalcDesktopService.isReleasePackageFileName(zip.name);
       await BkCreditCalcDesktopService.saveConfig(
         enabled: _enabled,
         version: version,
-        windowsDownloadUrl: zip.downloadUrl,
-        windowsInstallerUrl: isPackage ? zip.downloadUrl : '',
         releaseNotes: _notesCtrl.text,
+        windowsInstallerUrl:
+            zip.kind == DesktopPackageKind.setup ? zip.downloadUrl : null,
+        windowsMsixUrl:
+            zip.kind == DesktopPackageKind.msix ? zip.downloadUrl : null,
+        updateInstaller: zip.kind == DesktopPackageKind.setup,
+        updateMsix: zip.kind == DesktopPackageKind.msix,
       );
       if (mounted) {
         setState(() {
@@ -309,11 +337,8 @@ class _BkWindowsAppPageState extends State<BkWindowsAppPage> {
     }
   }
 
-  String _planetUrlFromConfig(Map<String, dynamic> config) {
-    final installer = (config['windowsInstallerUrl'] ?? '').toString().trim();
-    if (installer.isNotEmpty) return installer;
-    return (config['windowsDownloadUrl'] ?? '').toString().trim();
-  }
+  String _planetUrlFromConfig(Map<String, dynamic> config) =>
+      BkCreditCalcDesktopService.planetDownloadUrl(config);
 
   bool _isActiveRelease(DesktopReleaseZip zip, Map<String, dynamic>? config) {
     if (config == null) return false;
@@ -334,6 +359,16 @@ class _BkWindowsAppPageState extends State<BkWindowsAppPage> {
     return zip.name.toLowerCase().endsWith('.zip');
   }
 
+  String? _expectedSetupName() {
+    final v = _versionCtrl.text.trim();
+    if (v.isEmpty || _looksLikeFilePath(v)) return null;
+    try {
+      return BkCreditCalcDesktopService.setupObjectName(v);
+    } catch (_) {
+      return null;
+    }
+  }
+
   String? _expectedMsixName() {
     final v = _versionCtrl.text.trim();
     if (v.isEmpty) return null;
@@ -345,10 +380,15 @@ class _BkWindowsAppPageState extends State<BkWindowsAppPage> {
   }
 
   Widget _buildActiveDownloadSection(Map<String, dynamic>? firestoreConfig) {
-    final url = _effectiveDownloadUrl(firestoreConfig);
+    final setupUrl =
+        BkCreditCalcDesktopService.setupUrlFromConfig(firestoreConfig);
+    final msixUrl = BkCreditCalcDesktopService.msixUrlFromConfig(firestoreConfig);
+    final primaryUrl = firestoreConfig == null
+        ? _effectiveDownloadUrl()
+        : BkCreditCalcDesktopService.planetDownloadUrl(firestoreConfig);
     final version = _effectiveVersion();
 
-    if (url.isEmpty) {
+    if (setupUrl.isEmpty && msixUrl.isEmpty && primaryUrl.isEmpty) {
       return Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
@@ -362,7 +402,7 @@ class _BkWindowsAppPageState extends State<BkWindowsAppPage> {
           ),
           const SizedBox(height: 6),
           Text(
-            'Compare qui dopo il caricamento del MSIX.',
+            'Compare qui dopo il caricamento dell\'installer.',
             style: TextStyle(fontSize: 13, color: Colors.grey.shade700),
           ),
           if (_showManualUrl) ...[
@@ -403,51 +443,68 @@ class _BkWindowsAppPageState extends State<BkWindowsAppPage> {
               color: Colors.green.shade900,
             ),
           ),
-          const SizedBox(height: 6),
-          Text(
-            'Gli utenti Planet scaricano da questo link:',
-            style: TextStyle(fontSize: 12, color: Colors.grey.shade800),
-          ),
           const SizedBox(height: 8),
-          SelectableText(
-            url,
-            style: TextStyle(
-              fontSize: 11,
-              fontFamily: 'Consolas',
-              color: Colors.grey.shade900,
+          if (setupUrl.isNotEmpty) ...[
+            Text(
+              'Download Planet (Setup.exe — consigliato):',
+              style: TextStyle(fontSize: 12, color: Colors.grey.shade800),
             ),
-          ),
-          const SizedBox(height: 8),
+            const SizedBox(height: 4),
+            SelectableText(
+              setupUrl,
+              style: TextStyle(
+                fontSize: 11,
+                fontFamily: 'Consolas',
+                color: Colors.grey.shade900,
+              ),
+            ),
+            const SizedBox(height: 8),
+          ],
+          if (msixUrl.isNotEmpty) ...[
+            Text(
+              'MSIX (opzionale, richiede firma commerciale):',
+              style: TextStyle(fontSize: 12, color: Colors.grey.shade800),
+            ),
+            const SizedBox(height: 4),
+            SelectableText(
+              msixUrl,
+              style: TextStyle(
+                fontSize: 11,
+                fontFamily: 'Consolas',
+                color: Colors.grey.shade900,
+              ),
+            ),
+            const SizedBox(height: 8),
+          ],
+          if (setupUrl.isEmpty && msixUrl.isNotEmpty) ...[
+            Text(
+              'Planet usa il MSIX (Setup.exe non caricato):',
+              style: TextStyle(fontSize: 12, color: Colors.orange.shade900),
+            ),
+            const SizedBox(height: 4),
+            SelectableText(
+              primaryUrl,
+              style: TextStyle(
+                fontSize: 11,
+                fontFamily: 'Consolas',
+                color: Colors.grey.shade900,
+              ),
+            ),
+          ],
           Wrap(
             spacing: 8,
             children: [
-              TextButton.icon(
-                onPressed: () {
-                  Clipboard.setData(ClipboardData(text: url));
-                  _snack('Link copiato.');
-                },
-                icon: const Icon(Icons.copy, size: 18),
-                label: const Text('Copia link'),
-              ),
-              if (!_showManualUrl)
-                TextButton(
-                  onPressed: () => setState(() => _showManualUrl = true),
-                  child: const Text('Modifica URL'),
+              if (primaryUrl.isNotEmpty)
+                TextButton.icon(
+                  onPressed: () {
+                    Clipboard.setData(ClipboardData(text: primaryUrl));
+                    _snack('Link copiato.');
+                  },
+                  icon: const Icon(Icons.copy, size: 18),
+                  label: const Text('Copia link Planet'),
                 ),
             ],
           ),
-          if (_showManualUrl) ...[
-            const SizedBox(height: 8),
-            TextField(
-              controller: _urlCtrl,
-              decoration: const InputDecoration(
-                labelText: 'URL download',
-                border: OutlineInputBorder(),
-                isDense: true,
-              ),
-              onChanged: (_) => setState(() {}),
-            ),
-          ],
         ],
       ),
     );
@@ -535,9 +592,10 @@ class _BkWindowsAppPageState extends State<BkWindowsAppPage> {
                       ),
                       const SizedBox(height: 12),
                       Text(
-                        '1. Inserisci il numero della nuova versione (es. 1.0.3), non un percorso file.\n'
-                        '2. Clicca «Carica MSIX» e scegli CreditCalc-X.Y.Z.msix da creditcalc-tool/dist.\n'
-                        '3. Il link per Planet viene salvato automaticamente: non serve incollarlo.',
+                        '1. Inserisci la versione (es. 1.0.5).\n'
+                        '2. Carica Setup.exe per il download dal sito (consigliato).\n'
+                        '3. Carica MSIX solo se serve un pacchetto separato (richiede firma commerciale).\n'
+                        '4. Planet usa sempre Setup.exe se presente; altrimenti MSIX.',
                         style: TextStyle(
                           fontSize: 13,
                           height: 1.45,
@@ -548,18 +606,30 @@ class _BkWindowsAppPageState extends State<BkWindowsAppPage> {
                       TextField(
                         controller: _versionCtrl,
                         onChanged: (_) => setState(() {}),
-                        decoration: InputDecoration(
+                        decoration: const InputDecoration(
                           labelText: 'Numero versione',
                           hintText: 'es. 1.0.3',
-                          border: const OutlineInputBorder(),
+                          border: OutlineInputBorder(),
                           helperText:
                               'Deve essere maggiore della versione già installata dagli utenti.',
                         ),
                       ),
+                      if (_expectedSetupName() != null) ...[
+                        const SizedBox(height: 8),
+                        Text(
+                          'File consigliato: ${_expectedSetupName()} · '
+                          'Build: ${BkCreditCalcDesktopService.localRecommendedPathHint(_versionCtrl.text.trim())}',
+                          style: TextStyle(
+                            fontSize: 12,
+                            color: Colors.grey.shade700,
+                            fontFamily: 'Consolas',
+                          ),
+                        ),
+                      ],
                       if (_expectedMsixName() != null) ...[
                         const SizedBox(height: 8),
                         Text(
-                          'File atteso: ${_expectedMsixName()} · '
+                          'File MSIX (solo test interni): ${_expectedMsixName()} · '
                           'Build: ${BkCreditCalcDesktopService.localMsixPathHint(_versionCtrl.text.trim())}',
                           style: TextStyle(
                             fontSize: 12,
@@ -596,8 +666,14 @@ class _BkWindowsAppPageState extends State<BkWindowsAppPage> {
                         children: [
                           FilledButton.icon(
                             onPressed:
-                                _uploading || _loading ? null : _uploadMsix,
+                                _uploading || _loading ? null : _uploadSetup,
                             icon: const Icon(Icons.install_desktop),
+                            label: const Text('Carica Setup.exe'),
+                          ),
+                          FilledButton.tonalIcon(
+                            onPressed:
+                                _uploading || _loading ? null : _uploadMsix,
+                            icon: const Icon(Icons.apps),
                             label: const Text('Carica MSIX'),
                           ),
                           OutlinedButton.icon(
@@ -687,7 +763,8 @@ class _BkWindowsAppPageState extends State<BkWindowsAppPage> {
                             final lower = planetFile.toLowerCase();
                             final isMsix = lower.endsWith('.msix');
                             final isSetup = lower.contains('-setup.exe');
-                            final isOk = isMsix || isSetup;
+                            final isOk = isSetup;
+                            final isWarn = isMsix;
                             return Container(
                               width: double.infinity,
                               margin: const EdgeInsets.only(bottom: 12),
@@ -695,7 +772,9 @@ class _BkWindowsAppPageState extends State<BkWindowsAppPage> {
                               decoration: BoxDecoration(
                                 color: isOk
                                     ? Colors.green.shade50
-                                    : Colors.orange.shade50,
+                                    : isWarn
+                                        ? Colors.orange.shade50
+                                        : Colors.orange.shade50,
                                 borderRadius: BorderRadius.circular(8),
                                 border: Border.all(
                                   color: isOk
@@ -704,12 +783,13 @@ class _BkWindowsAppPageState extends State<BkWindowsAppPage> {
                                 ),
                               ),
                               child: Text(
-                                isMsix
-                                    ? 'Planet scarica ora (MSIX): $planetFile'
-                                    : isSetup
-                                        ? 'Planet scarica ora (Setup.exe): $planetFile'
-                                        : 'ATTENZIONE — Planet scarica ancora lo ZIP:\n$planetFile\n'
-                                            'Clicca Usa su CreditCalc-*.msix qui sotto.',
+                                isSetup
+                                    ? 'Planet scarica ora (Setup.exe): $planetFile'
+                                    : isMsix
+                                        ? 'ATTENZIONE — Planet usa MSIX non firmato (Windows blocca l\'installazione):\n$planetFile\n'
+                                            'Carica CreditCalc-*-Setup.exe e clicca Usa.'
+                                        : 'ATTENZIONE — formato non consigliato:\n$planetFile\n'
+                                            'Carica CreditCalc-*-Setup.exe e clicca Usa.',
                                 style: TextStyle(
                                   fontSize: 13,
                                   height: 1.4,
@@ -752,7 +832,7 @@ class _BkWindowsAppPageState extends State<BkWindowsAppPage> {
                               .toList();
                           if (installers.isEmpty) {
                             return const Text(
-                              'Nessun MSIX in Storage. Esegui la build e carica CreditCalc-*.msix.',
+                              'Nessun installer in Storage. Esegui la build e carica CreditCalc-*-Setup.exe.',
                             );
                           }
                           return Column(
@@ -879,11 +959,11 @@ class _BkWindowsAppPageState extends State<BkWindowsAppPage> {
                       const SizedBox(height: 12),
                       const Text(
                         '1. Aumenta version in creditcalc-tool/credit_calc/pubspec.yaml\n'
-                        '2. Build MSIX: powershell -File scripts/build_creditcalc_msix.ps1\n'
-                        '3. Carica dist/CreditCalc-<versione>.msix su Firebase (Carica MSIX)\n'
-                        '4. L utente Planet scarica il .msix e installa da Windows\n'
-                        '5. Al primo install Windows chiede di fidarsi del certificato (self-signed)\n'
-                        '6. Non usare file ZIP: Planet riceve solo il pacchetto MSIX',
+                        '2. Build: powershell -File scripts/build_creditcalc_setup.ps1\n'
+                        '3. Carica dist/CreditCalc-<versione>-Setup.exe (Carica installer)\n'
+                        '4. L utente Planet scarica Setup.exe e segue la procedura guidata\n'
+                        '5. SmartScreen puo avvisare: Ulteriori informazioni → Esegui comunque\n'
+                        '6. Non usare MSIX dal sito senza certificato commerciale (Windows blocca)',
                         style: TextStyle(fontSize: 14, height: 1.5),
                       ),
                       const SizedBox(height: 12),

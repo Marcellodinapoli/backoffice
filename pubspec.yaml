@@ -21,8 +21,8 @@ dependencies:
   firebase_storage: ^11.6.6
   cloud_functions: ^4.0.7   # ⬅️ AGGIUNTO (necessario per deleteUserCompletely)
 
-  # 🔹 Selettore file aggiornato (risolve warning multipiattaforma)
-  file_picker: ^6.1.1
+  # 🔹 Selettore file (>=8.0.7 risolve warning inline implementation)
+  file_picker: ^8.0.7
 
   # 🔹 Apertura link cross-platform (Web, Desktop, Mobile)
   url_launcher: ^6.3.1

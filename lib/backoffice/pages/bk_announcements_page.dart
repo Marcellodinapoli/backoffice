@@ -58,6 +58,31 @@ class _BkAnnouncementsPageState extends State<BkAnnouncementsPage> {
         .update({'active': !current});
   }
 
+  Stream<Map<String, int>> _watchSeenCountsByAnnouncement() {
+    return FirebaseFirestore.instance
+        .collectionGroup('seen_announcements')
+        .snapshots()
+        .map(_parseSeenCounts);
+  }
+
+  Map<String, int> _parseSeenCounts(QuerySnapshot snap) {
+    final usersByAnnouncement = <String, Set<String>>{};
+
+    for (final doc in snap.docs) {
+      if (doc.id == '_init') continue;
+
+      final userId = doc.reference.parent.parent?.id;
+      if (userId == null) continue;
+
+      usersByAnnouncement.putIfAbsent(doc.id, () => {}).add(userId);
+    }
+
+    return {
+      for (final entry in usersByAnnouncement.entries)
+        entry.key: entry.value.length,
+    };
+  }
+
   void _resetForm() {
     _titleController.clear();
     _contentController.clear();
@@ -364,23 +389,27 @@ class _BkAnnouncementsPageState extends State<BkAnnouncementsPage> {
 
               final docs = snapshot.data!.docs;
 
-              return ListView.builder(
-                itemCount: docs.length,
-                itemBuilder: (context, index) {
+              return StreamBuilder<Map<String, int>>(
+                stream: _watchSeenCountsByAnnouncement(),
+                builder: (context, seenSnap) {
+                  final seenCounts = seenSnap.data ?? const <String, int>{};
 
-                  final ann = docs[index].data() as Map<String, dynamic>;
-                  final id = docs[index].id;
+                  return ListView.builder(
+                    itemCount: docs.length,
+                    itemBuilder: (context, index) {
 
-                  final created = ann['createdAt'] == null
-                      ? ''
-                      : _formatDate(ann['createdAt'].toDate());
+                      final ann = docs[index].data() as Map<String, dynamic>;
+                      final id = docs[index].id;
 
-                  final bool active = ann['active'] ?? false;
-                  final String type = ann['type'] ?? 'avviso';
+                      final created = ann['createdAt'] == null
+                          ? ''
+                          : _formatDate(ann['createdAt'].toDate());
 
-                  // ✅ NUOVI DATI
-                  final int targetCount = ann['targetCount'] ?? 0;
-                  final int seenCount = ann['seenCount'] ?? 0;
+                      final bool active = ann['active'] ?? false;
+                      final String type = ann['type'] ?? 'avviso';
+
+                      final int targetCount = ann['targetCount'] ?? 0;
+                      final int seenCount = seenCounts[id] ?? 0;
 
                   // 🎨 colore per tipo
                   Color bgColor;
@@ -488,6 +517,8 @@ class _BkAnnouncementsPageState extends State<BkAnnouncementsPage> {
                       ),
                     ),
                   );
+                },
+              );
                 },
               );
             },
