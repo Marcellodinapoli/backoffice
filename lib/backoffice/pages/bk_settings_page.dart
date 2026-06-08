@@ -1,6 +1,8 @@
 import 'package:flutter/material.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 
+import '../widgets/settings_cleanup_button.dart';
+
 class BkSettingsPage extends StatefulWidget {
   const BkSettingsPage({super.key});
 
@@ -121,110 +123,6 @@ class _BkSettingsPageState extends State<BkSettingsPage> {
     }
   }
 
-  // 🧹 Pulizia sicura MIGLIORATA
-  Future<void> _cleanupOldData() async {
-    final confirm = await showDialog<bool>(
-      context: context,
-      builder: (_) => AlertDialog(
-        title: const Text('Conferma pulizia'),
-        content: const Text(
-          'Verranno eliminati SOLO:\n'
-          '- pendingLogins scaduti (>2 minuti)\n'
-          '- dati test/debug\n\n'
-          'I dati reali NON verranno toccati.',
-        ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(context, false),
-            child: const Text('Annulla'),
-          ),
-          FilledButton(
-            style: FilledButton.styleFrom(backgroundColor: Colors.red),
-            onPressed: () => Navigator.pop(context, true),
-            child: const Text('Pulisci'),
-          ),
-        ],
-      ),
-    );
-
-    if (confirm != true) return;
-
-    try {
-      final firestore = FirebaseFirestore.instance;
-      int deletedCount = 0;
-
-      final now = DateTime.now();
-      final limit = now.subtract(const Duration(minutes: 2));
-
-      final pendingSnap = await firestore.collection('pendingLogins').get();
-      for (var doc in pendingSnap.docs) {
-        final data = doc.data();
-        final createdAt = data['createdAt'];
-
-        if (createdAt != null) {
-          final date = (createdAt as Timestamp).toDate();
-          if (date.isBefore(limit)) {
-            await doc.reference.delete();
-            deletedCount++;
-          }
-        }
-      }
-
-      final obsolete = ['temp', 'debug', 'test', 'old_progress', 'backup_old'];
-      for (final col in obsolete) {
-        final snap = await firestore.collection(col).get();
-        for (var doc in snap.docs) {
-          await doc.reference.delete();
-          deletedCount++;
-        }
-      }
-
-      if (!mounted) return;
-
-      ScaffoldMessenger.of(context)
-        ..clearSnackBars()
-        ..showSnackBar(
-          SnackBar(
-            behavior: SnackBarBehavior.floating,
-            backgroundColor: Colors.black87,
-            margin: const EdgeInsets.symmetric(horizontal: 20, vertical: 40),
-            shape: RoundedRectangleBorder(
-              borderRadius: BorderRadius.circular(12),
-            ),
-            content: Center(
-              child: Text(
-                'Pulizia completata: $deletedCount elementi rimossi.',
-                textAlign: TextAlign.center,
-              ),
-            ),
-            duration: const Duration(seconds: 2),
-          ),
-        );
-    } catch (e) {
-      if (!mounted) return;
-
-      ScaffoldMessenger.of(context)
-        ..clearSnackBars()
-        ..showSnackBar(
-          SnackBar(
-            behavior: SnackBarBehavior.floating,
-            backgroundColor: Colors.redAccent,
-            margin: const EdgeInsets.symmetric(horizontal: 20, vertical: 40),
-            shape: RoundedRectangleBorder(
-              borderRadius: BorderRadius.circular(12),
-            ),
-            content: Center(
-              child: Text(
-                'Errore durante la pulizia: $e',
-                textAlign: TextAlign.center,
-              ),
-            ),
-            duration: const Duration(seconds: 2),
-          ),
-        );
-    }
-  }
-
   Widget _buildMaintenanceCard(Map<String, dynamic>? data) {
     final maintenanceMode = _readEnabled(data);
     final selectedSection = _readSection(data);
@@ -333,13 +231,10 @@ class _BkSettingsPageState extends State<BkSettingsPage> {
           color: const Color(0xFFF5F5F5),
           child: ListTile(
             title: const Text('Pulizia database'),
-            subtitle: const Text('Rimuove solo dati scaduti e debug (sicuro)'),
-            trailing: ElevatedButton.icon(
-              icon: const Icon(Icons.cleaning_services),
-              label: const Text('Pulisci tutto'),
-              style: ElevatedButton.styleFrom(backgroundColor: Colors.redAccent),
-              onPressed: _cleanupOldData,
+            subtitle: const Text(
+              'Rimuove pendingLogins scaduti e collezioni test/debug',
             ),
+            trailing: const SettingsCleanupButton(),
           ),
         ),
         const SizedBox(height: 12),

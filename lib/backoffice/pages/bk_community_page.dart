@@ -4,6 +4,8 @@
 import 'package:flutter/material.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
+
+import '../utils/bk_community_read_state.dart';
 import 'bk_community_topic_page.dart';
 
 
@@ -26,11 +28,33 @@ class _BkCommunityPageState extends State<BkCommunityPage> {
   final user = FirebaseAuth.instance.currentUser;
 
   bool _isAdmin = false;
+  String _userName = 'Utente';
+  Map<String, int> _topicLastSeen = {};
+  bool _readStateReady = false;
 
   @override
   void initState() {
     super.initState();
+    _topicLastSeen = BkCommunityReadState.getTopicsLastSeen();
+    _readStateReady = true;
     _checkAdmin();
+    _loadUserName();
+  }
+
+  Future<void> _loadUserName() async {
+    if (user == null) return;
+    try {
+      final doc = await FirebaseFirestore.instance
+          .collection('users')
+          .doc(user!.uid)
+          .get();
+      if (!mounted || !doc.exists) return;
+      setState(() {
+        _userName = doc.data()?['name']?.toString().trim().isNotEmpty == true
+            ? doc.data()!['name'].toString()
+            : 'Utente';
+      });
+    } catch (_) {}
   }
 
   Future<void> _checkAdmin() async {
@@ -107,17 +131,16 @@ class _BkCommunityPageState extends State<BkCommunityPage> {
 
                   await topicDoc.set({
                     'title': title,
-                    'createdBy': user?.email ?? 'Utente anonimo',
+                    'createdBy': _userName,
                     'userId': user?.uid,
                     'createdAt': FieldValue.serverTimestamp(),
-                    // 🔥 ADMIN PUBBLICA DIRETTAMENTE
                     'status': isAdmin ? 'approved' : 'pending',
                   });
 
                   await topicDoc.collection('messages').add({
                     'text': message,
                     'userId': user?.uid,
-                    'userName': user?.email,
+                    'userName': _userName,
                     'timestamp': FieldValue.serverTimestamp(),
                   });
 
@@ -249,9 +272,8 @@ class _BkCommunityPageState extends State<BkCommunityPage> {
 
 
   /// 🔹 APRE DISCUSSIONE
-  void _openTopicMessages(DocumentSnapshot topic) {
-
-    Navigator.push(
+  Future<void> _openTopicMessages(DocumentSnapshot topic) async {
+    await Navigator.push(
       context,
       MaterialPageRoute(
         fullscreenDialog: true,
@@ -261,6 +283,12 @@ class _BkCommunityPageState extends State<BkCommunityPage> {
         ),
       ),
     );
+
+    final now = DateTime.now().millisecondsSinceEpoch;
+    BkCommunityReadState.setTopicLastSeenMs(topic.id, now);
+    if (mounted) {
+      setState(() => _topicLastSeen[topic.id] = now);
+    }
   }
 
 
@@ -385,7 +413,29 @@ class _BkCommunityPageState extends State<BkCommunityPage> {
                         child: ConstrainedBox(
                           constraints:
                           const BoxConstraints(maxWidth: 1300),
-                          child: Card(
+                          child: StreamBuilder<QuerySnapshot>(
+                            stream: topic.reference
+                                .collection('messages')
+                                .snapshots(),
+                            builder: (context, msgSnap) {
+                              final docs = msgSnap.data?.docs ?? [];
+                              final lastSeen =
+                                  _topicLastSeen[topic.id] ?? 0;
+                              final unreadCount = _readStateReady &&
+                                      lastSeen > 0
+                                  ? docs.where((doc) {
+                                      final data =
+                                          doc.data() as Map<String, dynamic>;
+                                      final ts =
+                                          data['timestamp'] as Timestamp?;
+                                      final senderId = data['userId'];
+                                      return ts != null &&
+                                          senderId != user?.uid &&
+                                          ts.millisecondsSinceEpoch > lastSeen;
+                                    }).length
+                                  : 0;
+
+                              return Card(
                             margin: const EdgeInsets.symmetric(vertical: 8),
                             color: const Color(0xFFF5F5F5),
                             shape: RoundedRectangleBorder(
@@ -403,6 +453,27 @@ class _BkCommunityPageState extends State<BkCommunityPage> {
                                           FontWeight.bold),
                                     ),
                                   ),
+                                  if (unreadCount > 0)
+                                    Container(
+                                      margin:
+                                          const EdgeInsets.only(right: 8),
+                                      padding: const EdgeInsets.symmetric(
+                                        horizontal: 8,
+                                        vertical: 2,
+                                      ),
+                                      decoration: BoxDecoration(
+                                        color: Colors.red,
+                                        borderRadius:
+                                            BorderRadius.circular(12),
+                                      ),
+                                      child: Text(
+                                        '$unreadCount',
+                                        style: const TextStyle(
+                                          color: Colors.white,
+                                          fontSize: 11,
+                                        ),
+                                      ),
+                                    ),
                                   Row(
                                     children: [
                                       Icon(Icons.circle,
@@ -422,7 +493,9 @@ class _BkCommunityPageState extends State<BkCommunityPage> {
                                   ),
                                 ],
                               ),
-                              subtitle: Text("di $author"),
+                              subtitle: Text(
+                                'di $author • ${docs.length} commenti',
+                              ),
                               trailing: Row(
                                 mainAxisSize: MainAxisSize.min,
                                 children: [
@@ -473,6 +546,8 @@ class _BkCommunityPageState extends State<BkCommunityPage> {
                                 ],
                               ),
                             ),
+                          );
+                            },
                           ),
                         ),
                       );

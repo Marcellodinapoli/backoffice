@@ -1,5 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
+
+import '../utils/user_account_status.dart';
 import 'bk_user_details_page.dart';
 
 class BkUsersPage extends StatefulWidget {
@@ -67,14 +69,7 @@ class _UserList extends StatelessWidget {
     }
   }
 
-  String _formatDate(Timestamp? ts) {
-    if (ts == null) return "N/D";
-    final d = ts.toDate();
-    return "${d.day.toString().padLeft(2, '0')}/"
-        "${d.month.toString().padLeft(2, '0')}/"
-        "${d.year} ${d.hour.toString().padLeft(2, '0')}:"
-        "${d.minute.toString().padLeft(2, '0')}";
-  }
+  String _formatDate(dynamic ts) => UserAccountStatus.formatDateTime(ts);
 
   String _roleLabel(String? role) {
     switch (role) {
@@ -121,7 +116,12 @@ class _UserList extends StatelessWidget {
 
             final name = user['name'] ?? 'Senza nome';
             final email = user['email'] ?? 'Nessuna email';
-            final status = user['status'] ?? 'pending';
+            final rawStatus =
+                user['status'] ?? UserAccountStatus.defaultRawStatus(userType);
+            final status = UserAccountStatus.displayStatus(
+              rawStatus,
+              type: userType,
+            );
             final workRole = user['workRole'];
             final companyId = user['companyId'];
             final lastLoginAt = user['lastLoginAt'];
@@ -176,56 +176,59 @@ class _UserList extends StatelessWidget {
                           fontSize: 14,
                         ),
                       ),
-                      if (userType == "work")
-                        Padding(
-                          padding: const EdgeInsets.only(top: 8),
-                          child: FutureBuilder<DocumentSnapshot>(
-                            future: companyId != null
-                                ? FirebaseFirestore.instance
-                                .collection('companies')
-                                .doc(companyId)
-                                .get()
-                                : null,
-                            builder: (context, companySnap) {
-                              String companyName = "N/D";
+                      Padding(
+                        padding: const EdgeInsets.only(top: 8),
+                        child: userType == "work"
+                            ? FutureBuilder<DocumentSnapshot>(
+                                future: companyId != null
+                                    ? FirebaseFirestore.instance
+                                        .collection('companies')
+                                        .doc(companyId)
+                                        .get()
+                                    : null,
+                                builder: (context, companySnap) {
+                                  String companyName = "N/D";
 
-                              if (companySnap.hasData &&
-                                  companySnap.data!.exists) {
-                                final companyData =
-                                companySnap.data!.data()
-                                as Map<String, dynamic>;
-                                companyName =
-                                    companyData['name'] ?? "N/D";
-                              }
+                                  if (companySnap.hasData &&
+                                      companySnap.data!.exists) {
+                                    final companyData = companySnap.data!.data()
+                                        as Map<String, dynamic>;
+                                    companyName =
+                                        companyData['name'] ?? "N/D";
+                                  }
 
-                              return Column(
-                                crossAxisAlignment:
-                                CrossAxisAlignment.start,
-                                children: [
-                                  Text(
-                                    "Ruolo: ${_roleLabel(workRole)}",
-                                    style: const TextStyle(
-                                      fontSize: 13,
-                                      fontWeight: FontWeight.w600,
-                                    ),
-                                  ),
-                                  Text(
-                                    "Azienda: $companyName",
-                                    style: const TextStyle(
-                                      fontSize: 13,
-                                    ),
-                                  ),
-                                  Text(
-                                    "Ultimo accesso: ${_formatDate(lastLoginAt)}",
-                                    style: const TextStyle(
-                                      fontSize: 13,
-                                    ),
-                                  ),
-                                ],
-                              );
-                            },
-                          ),
-                        ),
+                                  return Column(
+                                    crossAxisAlignment:
+                                        CrossAxisAlignment.start,
+                                    children: [
+                                      Text(
+                                        "Ruolo: ${_roleLabel(workRole)}",
+                                        style: const TextStyle(
+                                          fontSize: 13,
+                                          fontWeight: FontWeight.w600,
+                                        ),
+                                      ),
+                                      Text(
+                                        "Azienda: $companyName",
+                                        style: const TextStyle(
+                                          fontSize: 13,
+                                        ),
+                                      ),
+                                      Text(
+                                        "Ultimo accesso: ${_formatDate(lastLoginAt)}",
+                                        style: const TextStyle(
+                                          fontSize: 13,
+                                        ),
+                                      ),
+                                    ],
+                                  );
+                                },
+                              )
+                            : Text(
+                                "Ultimo accesso: ${_formatDate(lastLoginAt)}",
+                                style: const TextStyle(fontSize: 13),
+                              ),
+                      ),
                       const SizedBox(height: 16),
                       Align(
                         alignment: Alignment.centerRight,

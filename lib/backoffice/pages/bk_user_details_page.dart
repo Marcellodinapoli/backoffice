@@ -5,6 +5,8 @@ import 'package:flutter/material.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:backoffice/backoffice/widgets/bk_impaginazione_secondaria.dart';
 
+import '../utils/user_account_status.dart';
+
 // -----------------------------------------------------------------------------
 // PAGE
 // -----------------------------------------------------------------------------
@@ -168,7 +170,7 @@ class _BkUserDetailsPageState extends State<BkUserDetailsPage> {
       );
     }
 
-    return StreamBuilder<DocumentSnapshot>(
+    return StreamBuilder<DocumentSnapshot<Map<String, dynamic>>>(
       stream: FirebaseFirestore.instance
           .collection('users')
           .doc(widget.userId)
@@ -188,34 +190,31 @@ class _BkUserDetailsPageState extends State<BkUserDetailsPage> {
           );
         }
 
-        final data = snapshot.data!.data() as Map<String, dynamic>?;
+        final data = snapshot.data!.data();
 
         final name = data?['name'] ?? 'Nome non disponibile';
         final email = data?['email'] ?? 'Email non disponibile';
-        final type = data?['type'] ?? 'Non specificato';
-        final status = data?['status'] ?? 'active';
+        final type = data?['type']?.toString() ?? 'Non specificato';
+        final rawStatus = data?['status']?.toString() ??
+            UserAccountStatus.defaultRawStatus(
+              type == 'work' ? 'work' : 'public',
+            );
+        final status = UserAccountStatus.displayStatus(
+          rawStatus,
+          type: type == 'work' ? 'work' : 'public',
+        );
         final blockedReason = data?['blockedReason'];
         final standbyReason = data?['standbyReason'];
 
-        final createdAt =
-            data?['createdAt']?.toDate()?.toString() ?? 'Data non disponibile';
+        final createdAt = UserAccountStatus.formatDateTime(data?['createdAt']);
+        final lastLogin = UserAccountStatus.formatDateTime(data?['lastLoginAt']);
 
         final workRole = data?['workRole'];
         final companyId = data?['companyId'];
-        final lastLogin =
-            data?['lastLoginAt']?.toDate()?.toString() ?? 'Non disponibile';
-
-        // ✅ NUOVO: date blocco / standby
-        final blockedAt = data?['blockedAt'];
-        final standbyAt = data?['standbyAt'];
-
-        final blockedDate = blockedAt != null
-            ? (blockedAt as Timestamp).toDate().toString()
-            : null;
-
-        final standbyDate = standbyAt != null
-            ? (standbyAt as Timestamp).toDate().toString()
-            : null;
+        final blockedDate = UserAccountStatus.formatDateTime(data?['blockedAt']);
+        final standbyDate = UserAccountStatus.formatDateTime(data?['standbyAt']);
+        final hasBlockedDate = data?['blockedAt'] != null;
+        final hasStandbyDate = data?['standbyAt'] != null;
 
         return ListView(
           padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 24),
@@ -260,11 +259,25 @@ class _BkUserDetailsPageState extends State<BkUserDetailsPage> {
                     Text("Email: $email"),
                     Text("Tipo: $type"),
                     Text("Stato: $status"),
+                    if (type == 'work' && rawStatus != status)
+                      Text(
+                        "Stato Firestore: $rawStatus",
+                        style: const TextStyle(
+                          fontSize: 12,
+                          color: Colors.black54,
+                        ),
+                      ),
                     Text("Registrato il: $createdAt"),
                     Text("Ultimo accesso: $lastLogin"),
+                    Text(
+                      'Aggiornato in tempo reale da Firestore',
+                      style: TextStyle(
+                        fontSize: 12,
+                        color: Colors.grey.shade600,
+                      ),
+                    ),
 
-                    // ✅ BLOCCO INFO
-                    if (status == "blocked" && blockedDate != null)
+                    if (status == "blocked" && hasBlockedDate)
                       Text(
                         "Bloccato il: $blockedDate",
                         style: const TextStyle(color: Colors.red),
@@ -278,8 +291,7 @@ class _BkUserDetailsPageState extends State<BkUserDetailsPage> {
                         style: const TextStyle(color: Colors.red),
                       ),
 
-                    // ✅ STANDBY INFO
-                    if (status == "standby" && standbyDate != null)
+                    if (status == "standby" && hasStandbyDate)
                       Text(
                         "Standby dal: $standbyDate",
                         style: const TextStyle(color: Colors.orange),
@@ -354,12 +366,18 @@ class _BkUserDetailsPageState extends State<BkUserDetailsPage> {
                           },
                         ),
 
-                        if (status != "active")
+                        if (UserAccountStatus.needsAdminActivation(
+                          rawStatus,
+                          type: type == 'work' ? 'work' : 'public',
+                        ))
                           _actionButton(
                             label: "Attiva utente",
                             color: Colors.green,
                             onTap: () async {
-                              await _updateField("status", "active");
+                              await FirebaseFirestore.instance
+                                  .collection("users")
+                                  .doc(widget.userId)
+                                  .update(UserAccountStatus.activationUpdate());
                             },
                           ),
                       ],
