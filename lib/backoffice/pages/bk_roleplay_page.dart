@@ -6,6 +6,7 @@
   import 'package:cloud_firestore/cloud_firestore.dart';
   import 'package:firebase_auth/firebase_auth.dart';
   import '../../main.dart';
+  import '../utils/bk_roleplay_ai_provider.dart';
 
   class BkRoleplayPage extends StatefulWidget {
     const BkRoleplayPage({super.key});
@@ -30,6 +31,31 @@
       await user.getIdToken(true);
     }
 
+    Future<void> _setAiProvider(
+      DocumentReference<Map<String, dynamic>> ref,
+      String provider,
+    ) async {
+      try {
+        await ref.update({'aiProvider': provider});
+        if (!mounted) return;
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text(
+              'Motore AI: ${BkRoleplayAiProvider.label(provider)}',
+            ),
+          ),
+        );
+      } catch (e) {
+        if (!mounted) return;
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Errore salvataggio AI: $e'),
+            backgroundColor: Colors.red,
+          ),
+        );
+      }
+    }
+
     // ============================================================
 // ACTIONS - EDIT
 // ============================================================
@@ -45,6 +71,8 @@
       if (category != "Sollecito" && category != "Recupero") {
         category = "Sollecito";
       }
+
+      String aiProvider = BkRoleplayAiProvider.read(data);
 
       // ---------------- PRACTICE DATA ----------------
       List<Map<String, TextEditingController>> practiceData = [];
@@ -120,6 +148,23 @@
                           if (v != null) {
                             setModalState(() => category = v);
                           }
+                        },
+                      ),
+
+                      const SizedBox(height: 16),
+
+                      const Text(
+                        "Motore AI (Planet)",
+                        style: TextStyle(
+                          fontWeight: FontWeight.bold,
+                          fontSize: 16,
+                        ),
+                      ),
+                      const SizedBox(height: 8),
+                      BkRoleplayAiProvider.selector(
+                        current: aiProvider,
+                        onChanged: (value) {
+                          setModalState(() => aiProvider = value);
                         },
                       ),
 
@@ -239,6 +284,7 @@
                                 "category": category,
                                 "prompt": promptCtrl.text.trim(),
                                 "practiceData": formattedPracticeData,
+                                "aiProvider": aiProvider,
                               });
 
                               if (!context.mounted) return;
@@ -262,6 +308,32 @@
         ),
       );
     }
+
+    Widget _roleplayCardAiRow(
+      Map<String, dynamic> data,
+      DocumentReference<Map<String, dynamic>> ref,
+    ) {
+      final aiProvider = BkRoleplayAiProvider.read(data);
+
+      return Padding(
+        padding: const EdgeInsets.only(top: 10),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text(
+              'Motore AI su Planet: ${BkRoleplayAiProvider.label(aiProvider)}',
+              style: TextStyle(fontSize: 12, color: Colors.grey.shade700),
+            ),
+            const SizedBox(height: 6),
+            BkRoleplayAiProvider.selector(
+              current: aiProvider,
+              onChanged: (value) => _setAiProvider(ref, value),
+            ),
+          ],
+        ),
+      );
+    }
+
 // ============================================================
 // ACTIONS - ADD
 // ============================================================
@@ -271,6 +343,7 @@
       final promptCtrl = TextEditingController();
 
       String category = "Sollecito";
+      String aiProvider = BkRoleplayAiProvider.hetzner;
 
       List<Map<String, TextEditingController>> practiceData = [];
 
@@ -331,6 +404,23 @@
                           if (val != null) {
                             setModalState(() => category = val);
                           }
+                        },
+                      ),
+
+                      const SizedBox(height: 16),
+
+                      const Text(
+                        "Motore AI (Planet)",
+                        style: TextStyle(
+                          fontWeight: FontWeight.bold,
+                          fontSize: 16,
+                        ),
+                      ),
+                      const SizedBox(height: 8),
+                      BkRoleplayAiProvider.selector(
+                        current: aiProvider,
+                        onChanged: (value) {
+                          setModalState(() => aiProvider = value);
                         },
                       ),
 
@@ -459,6 +549,7 @@
                                   "category": category,
                                   "prompt": promptCtrl.text.trim(),
                                   "practiceData": formattedPracticeData,
+                                  "aiProvider": aiProvider,
                                   "date": DateTime.now().toIso8601String(),
                                 });
 
@@ -776,6 +867,8 @@
                                           );
                                         }),
 
+                                      _roleplayCardAiRow(data, d.reference),
+
                                       const SizedBox(height: 4),
                                       const Text(
                                         "Prompt: [clicca Vedi]",
@@ -896,6 +989,8 @@
                                             ),
                                           );
                                         }),
+
+                                      _roleplayCardAiRow(data, d.reference),
 
                                       const SizedBox(height: 4),
                                       const Text(
