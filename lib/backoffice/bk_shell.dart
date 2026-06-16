@@ -24,6 +24,7 @@ import 'pages/bk_community_page.dart';
 import 'pages/bk_support_page.dart';
 import 'pages/bk_job_rules_page.dart';
 import 'pages/bk_windows_app_page.dart';
+import 'pages/bk_coupons_page.dart';
 
 // -----------------------------------------------------------------------------
 // PAGE
@@ -59,6 +60,7 @@ class _BackOfficeShellState extends State<BackOfficeShell> {
     BkSecurityPage(),
     BkCommunityPage(),
     BkSupportPage(),
+    BkCouponsPage(),
     BkWindowsAppPage(),
   ];
 
@@ -78,6 +80,7 @@ class _BackOfficeShellState extends State<BackOfficeShell> {
     'Sicurezza',
     'Community',
     'Assistenza',
+    'Coupon registrazione',
     'App Windows',
   ];
 
@@ -97,6 +100,7 @@ class _BackOfficeShellState extends State<BackOfficeShell> {
     Icons.security_outlined,
     Icons.forum_outlined,
     Icons.support_agent_outlined,
+    Icons.confirmation_number_outlined,
     Icons.desktop_windows_outlined,
   ];
 
