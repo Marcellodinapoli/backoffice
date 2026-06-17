@@ -334,6 +334,123 @@
       );
     }
 
+    Widget _buildRoleplayCard(DocumentSnapshot doc) {
+      final data = doc.data() as Map<String, dynamic>;
+      final title = data["title"] ?? "";
+      final category = data["category"] ?? "";
+      final audioUrl =
+          data.containsKey("audioUrl") ? data["audioUrl"] ?? "" : "";
+      final prompt = data["prompt"];
+      final practiceData = data["practiceData"] as List<dynamic>?;
+      final date =
+          DateTime.tryParse(data["date"] ?? "") ?? DateTime.now();
+      final dateLabel =
+          "${date.day.toString().padLeft(2, '0')}/"
+          "${date.month.toString().padLeft(2, '0')}/"
+          "${date.year}";
+      final metaLine = audioUrl.isNotEmpty
+          ? "$category • $audioUrl • Inserito il $dateLabel"
+          : "$category • Inserito il $dateLabel";
+
+      return Padding(
+        padding: const EdgeInsets.symmetric(vertical: 10),
+        child: Card(
+          elevation: 1.5,
+          color: const Color(0xFFF5F5F5),
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(18),
+          ),
+          child: Padding(
+            padding: const EdgeInsets.fromLTRB(20, 20, 20, 18),
+            child: Row(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        title,
+                        style: const TextStyle(
+                          fontSize: 18,
+                          fontWeight: FontWeight.w700,
+                          color: Colors.black,
+                        ),
+                      ),
+                      const SizedBox(height: 12),
+                      Text(
+                        metaLine,
+                        style: TextStyle(
+                          color: Colors.grey.shade700,
+                          fontSize: 14,
+                        ),
+                      ),
+                      if (practiceData != null)
+                        ...practiceData.map((item) {
+                          final label = item["label"] ?? "";
+                          final value = item["value"] ?? "";
+                          return Padding(
+                            padding: const EdgeInsets.only(top: 4),
+                            child: RichText(
+                              text: TextSpan(
+                                style: const TextStyle(color: Colors.black87),
+                                children: [
+                                  TextSpan(
+                                    text: "$label: ",
+                                    style: const TextStyle(
+                                      fontWeight: FontWeight.bold,
+                                    ),
+                                  ),
+                                  TextSpan(text: value),
+                                ],
+                              ),
+                            ),
+                          );
+                        }),
+                      _roleplayCardAiRow(
+                        data,
+                        doc.reference as DocumentReference<Map<String, dynamic>>,
+                      ),
+                      const SizedBox(height: 4),
+                      const Text(
+                        "Prompt: [clicca Vedi]",
+                        style: TextStyle(fontSize: 12),
+                      ),
+                    ],
+                  ),
+                ),
+                PopupMenuButton<String>(
+                  onSelected: (value) {
+                    if (value == "edit") {
+                      _editRoleplayDialog(doc);
+                    } else if (value == "delete") {
+                      _removeRoleplay(doc.id);
+                    } else if (value == "prompt") {
+                      _showPromptDialog(doc.id, title, prompt);
+                    }
+                  },
+                  itemBuilder: (_) => const [
+                    PopupMenuItem(
+                      value: "edit",
+                      child: Text("Modifica"),
+                    ),
+                    PopupMenuItem(
+                      value: "delete",
+                      child: Text("Elimina"),
+                    ),
+                    PopupMenuItem(
+                      value: "prompt",
+                      child: Text("Vedi/Modifica Prompt"),
+                    ),
+                  ],
+                ),
+              ],
+            ),
+          ),
+        ),
+      );
+    }
+
 // ============================================================
 // ACTIONS - ADD
 // ============================================================
@@ -809,102 +926,10 @@
                               );
                             }
 
-                            return ListView.separated(
+                            return ListView.builder(
                               itemCount: docs.length,
-                              separatorBuilder: (_, __) =>
-                              const Divider(height: 1),
-                              itemBuilder: (_, i) {
-                                final d = docs[i];
-                                final data = d.data();
-
-                                final title = data["title"] ?? "";
-                                final category = data["category"] ?? "";
-                                final audioUrl = data.containsKey("audioUrl")
-                                    ? data["audioUrl"] ?? ""
-                                    : "";
-                                final prompt = data["prompt"];
-                                final practiceData = data["practiceData"] as List<dynamic>?;
-
-                                final date =
-                                    DateTime.tryParse(data["date"] ?? "") ??
-                                        DateTime.now();
-
-                                return ListTile(
-                                  title: Text(
-                                    title,
-                                    style: const TextStyle(
-                                        fontWeight: FontWeight.bold),
-                                  ),
-                                  subtitle: Column(
-                                    crossAxisAlignment: CrossAxisAlignment.start,
-                                    children: [
-                                      Text(
-                                        audioUrl.isNotEmpty
-                                            ? "$category • $audioUrl • Inserito il ${date.day.toString().padLeft(2, '0')}/${date.month.toString().padLeft(2, '0')}/${date.year}"
-                                            : "$category • Inserito il ${date.day.toString().padLeft(2, '0')}/${date.month.toString().padLeft(2, '0')}/${date.year}",
-                                      ),
-
-                                      if (practiceData != null)
-                                        ...practiceData.map((item) {
-                                          final label = item["label"] ?? "";
-                                          final value = item["value"] ?? "";
-                                          return Padding(
-                                            padding: const EdgeInsets.only(top: 4),
-                                            child: RichText(
-                                              text: TextSpan(
-                                                style: const TextStyle(
-                                                    color: Colors.black87),
-                                                children: [
-                                                  TextSpan(
-                                                    text: "$label: ",
-                                                    style: const TextStyle(
-                                                        fontWeight: FontWeight.bold),
-                                                  ),
-                                                  TextSpan(text: value),
-                                                ],
-                                              ),
-                                            ),
-                                          );
-                                        }),
-
-                                      _roleplayCardAiRow(data, d.reference),
-
-                                      const SizedBox(height: 4),
-                                      const Text(
-                                        "Prompt: [clicca Vedi]",
-                                        style: TextStyle(fontSize: 12),
-                                      ),
-                                    ],
-                                  ),
-                                  trailing: PopupMenuButton<String>(
-                                    onSelected: (value) {
-                                      if (value == "edit") {
-                                        _editRoleplayDialog(d);
-                                      } else if (value == "delete") {
-                                        _removeRoleplay(d.id);
-                                      } else if (value == "prompt") {
-                                        _showPromptDialog(
-                                            d.id, title, prompt);
-                                      }
-                                    },
-                                    itemBuilder: (_) => const [
-                                      PopupMenuItem(
-                                        value: "edit",
-                                        child: Text("Modifica"),
-                                      ),
-                                      PopupMenuItem(
-                                        value: "delete",
-                                        child: Text("Elimina"),
-                                      ),
-                                      PopupMenuItem(
-                                        value: "prompt",
-                                        child:
-                                        Text("Vedi/Modifica Prompt"),
-                                      ),
-                                    ],
-                                  ),
-                                );
-                              },
+                              itemBuilder: (_, i) =>
+                                  _buildRoleplayCard(docs[i]),
                             );
                           },
                         ),
@@ -932,102 +957,10 @@
                               );
                             }
 
-                            return ListView.separated(
+                            return ListView.builder(
                               itemCount: docs.length,
-                              separatorBuilder: (_, __) =>
-                              const Divider(height: 1),
-                              itemBuilder: (_, i) {
-                                final d = docs[i];
-                                final data = d.data();
-
-                                final title = data["title"] ?? "";
-                                final category = data["category"] ?? "";
-                                final audioUrl = data.containsKey("audioUrl")
-                                    ? data["audioUrl"] ?? ""
-                                    : "";
-                                final prompt = data["prompt"];
-                                final practiceData = data["practiceData"] as List<dynamic>?;
-
-                                final date =
-                                    DateTime.tryParse(data["date"] ?? "") ??
-                                        DateTime.now();
-
-                                return ListTile(
-                                  title: Text(
-                                    title,
-                                    style: const TextStyle(
-                                        fontWeight: FontWeight.bold),
-                                  ),
-                                  subtitle: Column(
-                                    crossAxisAlignment: CrossAxisAlignment.start,
-                                    children: [
-                                      Text(
-                                        audioUrl.isNotEmpty
-                                            ? "$category • $audioUrl • Inserito il ${date.day.toString().padLeft(2, '0')}/${date.month.toString().padLeft(2, '0')}/${date.year}"
-                                            : "$category • Inserito il ${date.day.toString().padLeft(2, '0')}/${date.month.toString().padLeft(2, '0')}/${date.year}",
-                                      ),
-
-                                      if (practiceData != null)
-                                        ...practiceData.map((item) {
-                                          final label = item["label"] ?? "";
-                                          final value = item["value"] ?? "";
-                                          return Padding(
-                                            padding: const EdgeInsets.only(top: 4),
-                                            child: RichText(
-                                              text: TextSpan(
-                                                style: const TextStyle(
-                                                    color: Colors.black87),
-                                                children: [
-                                                  TextSpan(
-                                                    text: "$label: ",
-                                                    style: const TextStyle(
-                                                        fontWeight: FontWeight.bold),
-                                                  ),
-                                                  TextSpan(text: value),
-                                                ],
-                                              ),
-                                            ),
-                                          );
-                                        }),
-
-                                      _roleplayCardAiRow(data, d.reference),
-
-                                      const SizedBox(height: 4),
-                                      const Text(
-                                        "Prompt: [clicca Vedi]",
-                                        style: TextStyle(fontSize: 12),
-                                      ),
-                                    ],
-                                  ),
-                                  trailing: PopupMenuButton<String>(
-                                    onSelected: (value) {
-                                      if (value == "edit") {
-                                        _editRoleplayDialog(d);
-                                      } else if (value == "delete") {
-                                        _removeRoleplay(d.id);
-                                      } else if (value == "prompt") {
-                                        _showPromptDialog(
-                                            d.id, title, prompt);
-                                      }
-                                    },
-                                    itemBuilder: (_) => const [
-                                      PopupMenuItem(
-                                        value: "edit",
-                                        child: Text("Modifica"),
-                                      ),
-                                      PopupMenuItem(
-                                        value: "delete",
-                                        child: Text("Elimina"),
-                                      ),
-                                      PopupMenuItem(
-                                        value: "prompt",
-                                        child:
-                                        Text("Vedi/Modifica Prompt"),
-                                      ),
-                                    ],
-                                  ),
-                                );
-                              },
+                              itemBuilder: (_, i) =>
+                                  _buildRoleplayCard(docs[i]),
                             );
                           },
                         ),

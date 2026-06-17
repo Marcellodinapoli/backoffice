@@ -23,6 +23,7 @@ import 'pages/bk_roleplay_page.dart';
 import 'pages/bk_community_page.dart';
 import 'pages/bk_support_page.dart';
 import 'pages/bk_job_rules_page.dart';
+import 'pages/bk_registration_consents_page.dart';
 import 'pages/bk_windows_app_page.dart';
 import 'pages/bk_coupons_page.dart';
 
@@ -55,6 +56,7 @@ class _BackOfficeShellState extends State<BackOfficeShell> {
     BkSettingsPage(),
     BkJobsPage(),
     BkJobRulesPage(), // nuova pagina
+    BkRegistrationConsentsPage(),
     BkExportPage(),
     BkCostsPage(),
     BkSecurityPage(),
@@ -75,6 +77,7 @@ class _BackOfficeShellState extends State<BackOfficeShell> {
     'Impostazioni',
     'CreditJob',
     'Consensi job', // nuova voce menu
+    'Consensi registrazione',
     'Esporta',
     'Costi',
     'Sicurezza',
@@ -95,6 +98,7 @@ class _BackOfficeShellState extends State<BackOfficeShell> {
     Icons.settings_outlined,
     Icons.work_outline,
     Icons.rule_outlined, // icona regolamento
+    Icons.assignment_outlined,
     Icons.download_outlined,
     Icons.euro_outlined,
     Icons.security_outlined,
