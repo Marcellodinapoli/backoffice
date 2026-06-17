@@ -227,14 +227,14 @@ class _BkSettingsPageState extends State<BkSettingsPage> {
           },
         ),
         const SizedBox(height: 12),
-        Card(
-          color: const Color(0xFFF5F5F5),
+        const Card(
+          color: Color(0xFFF5F5F5),
           child: ListTile(
-            title: const Text('Pulizia database'),
-            subtitle: const Text(
+            title: Text('Pulizia database'),
+            subtitle: Text(
               'Rimuove pendingLogins scaduti e collezioni test/debug',
             ),
-            trailing: const SettingsCleanupButton(),
+            trailing: SettingsCleanupButton(),
           ),
         ),
         const SizedBox(height: 12),

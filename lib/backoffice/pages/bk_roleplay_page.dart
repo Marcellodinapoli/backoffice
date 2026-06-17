@@ -787,7 +787,7 @@
                       children: [
 
                         // ---------------- SOLLECITO ----------------
-                        StreamBuilder<QuerySnapshot>(
+                        StreamBuilder<QuerySnapshot<Map<String, dynamic>>>(
                           stream: formDb
                               .collection("roleplay")
                               .where("category", isEqualTo: "Sollecito")
@@ -815,7 +815,7 @@
                               const Divider(height: 1),
                               itemBuilder: (_, i) {
                                 final d = docs[i];
-                                final data = d.data() as Map<String, dynamic>;
+                                final data = d.data();
 
                                 final title = data["title"] ?? "";
                                 final category = data["category"] ?? "";
@@ -910,7 +910,7 @@
                         ),
 
                         // ---------------- RECUPERO ----------------
-                        StreamBuilder<QuerySnapshot>(
+                        StreamBuilder<QuerySnapshot<Map<String, dynamic>>>(
                           stream: formDb
                               .collection("roleplay")
                               .where("category", isEqualTo: "Recupero")
@@ -938,7 +938,7 @@
                               const Divider(height: 1),
                               itemBuilder: (_, i) {
                                 final d = docs[i];
-                                final data = d.data() as Map<String, dynamic>;
+                                final data = d.data();
 
                                 final title = data["title"] ?? "";
                                 final category = data["category"] ?? "";

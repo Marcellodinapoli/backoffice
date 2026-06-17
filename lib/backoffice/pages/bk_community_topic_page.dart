@@ -111,7 +111,7 @@ class _CommunityTopicPageState extends State<CommunityTopicPage> {
     final ctrl = TextEditingController(text: currentText);
     showDialog(
       context: context,
-      builder: (_) => AlertDialog(
+      builder: (dialogContext) => AlertDialog(
         title: const Text('Modifica messaggio'),
         content: TextField(
           controller: ctrl,
@@ -119,7 +119,7 @@ class _CommunityTopicPageState extends State<CommunityTopicPage> {
         ),
         actions: [
           TextButton(
-            onPressed: () => Navigator.pop(context),
+            onPressed: () => Navigator.pop(dialogContext),
             child: const Text('Annulla'),
           ),
           ElevatedButton(
@@ -130,8 +130,8 @@ class _CommunityTopicPageState extends State<CommunityTopicPage> {
                   .collection('messages')
                   .doc(msgId)
                   .update({'text': ctrl.text.trim()});
-              if (!context.mounted) return;
-              Navigator.pop(context);
+              if (!dialogContext.mounted) return;
+              Navigator.pop(dialogContext);
             },
             child: const Text('Salva'),
           ),
