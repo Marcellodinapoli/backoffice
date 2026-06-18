@@ -69,9 +69,12 @@ jobs:
 
       - name: Deploy to Netlify (CLI)
         if: steps.cfg.outputs.method == 'cli'
-        run: npx --yes netlify-cli@17.38.4 deploy --prod --dir=build/web --site="${{ secrets.NETLIFY_SITE_ID }}"
+        run: |
+          npx --yes netlify-cli deploy --prod --dir=build/web \
+            --message "deploy ${GITHUB_SHA::7} from GitHub Actions"
         env:
           NETLIFY_AUTH_TOKEN: ${{ secrets.NETLIFY_AUTH_TOKEN }}
+          NETLIFY_SITE_ID: ${{ secrets.NETLIFY_SITE_ID }}
 
       - name: Trigger build su backofficeadmin
         if: steps.cfg.outputs.method == 'hook'
