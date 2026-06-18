@@ -65,6 +65,7 @@
 
       final titleCtrl = TextEditingController(text: data["title"] ?? "");
       final promptCtrl = TextEditingController(text: data["prompt"] ?? "");
+      final gptPromptCtrl = TextEditingController(text: data["gptPrompt"] ?? "");
 
       String category = data["category"] ?? "Sollecito";
 
@@ -246,13 +247,10 @@
 
                       const SizedBox(height: 24),
 
-                      TextField(
-                        controller: promptCtrl,
-                        maxLines: 3,
-                        decoration: const InputDecoration(
-                          labelText: "Prompt",
-                          border: OutlineInputBorder(),
-                        ),
+                      BkRoleplayAiProvider.promptEditor(
+                        aiProvider: aiProvider,
+                        hetznerPrompt: promptCtrl,
+                        gptPrompt: gptPromptCtrl,
                       ),
 
                       const SizedBox(height: 32),
@@ -283,6 +281,7 @@
                                 "title": titleCtrl.text.trim(),
                                 "category": category,
                                 "prompt": promptCtrl.text.trim(),
+                                "gptPrompt": gptPromptCtrl.text.trim(),
                                 "practiceData": formattedPracticeData,
                                 "aiProvider": aiProvider,
                               });
@@ -340,7 +339,10 @@
       final category = data["category"] ?? "";
       final audioUrl =
           data.containsKey("audioUrl") ? data["audioUrl"] ?? "" : "";
-      final prompt = data["prompt"];
+      final aiProvider = BkRoleplayAiProvider.read(data);
+      final promptHint = aiProvider == BkRoleplayAiProvider.gpt
+          ? 'Prompt GPT: [clicca Vedi]'
+          : 'Prompt Hetzner: [clicca Vedi]';
       final practiceData = data["practiceData"] as List<dynamic>?;
       final date =
           DateTime.tryParse(data["date"] ?? "") ?? DateTime.now();
@@ -412,9 +414,9 @@
                         doc.reference as DocumentReference<Map<String, dynamic>>,
                       ),
                       const SizedBox(height: 4),
-                      const Text(
-                        "Prompt: [clicca Vedi]",
-                        style: TextStyle(fontSize: 12),
+                      Text(
+                        promptHint,
+                        style: const TextStyle(fontSize: 12),
                       ),
                     ],
                   ),
@@ -426,7 +428,7 @@
                     } else if (value == "delete") {
                       _removeRoleplay(doc.id);
                     } else if (value == "prompt") {
-                      _showPromptDialog(doc.id, title, prompt);
+                      _showPromptDialog(doc.id, title, data);
                     }
                   },
                   itemBuilder: (_) => const [
@@ -458,6 +460,7 @@
     void _addRoleplayDialog() {
       final titleCtrl = TextEditingController();
       final promptCtrl = TextEditingController();
+      final gptPromptCtrl = TextEditingController();
 
       String category = "Sollecito";
       String aiProvider = BkRoleplayAiProvider.hetzner;
@@ -619,13 +622,10 @@
 
                       const SizedBox(height: 24),
 
-                      TextField(
-                        controller: promptCtrl,
-                        maxLines: 3,
-                        decoration: const InputDecoration(
-                          labelText: "Prompt",
-                          border: OutlineInputBorder(),
-                        ),
+                      BkRoleplayAiProvider.promptEditor(
+                        aiProvider: aiProvider,
+                        hetznerPrompt: promptCtrl,
+                        gptPrompt: gptPromptCtrl,
                       ),
 
                       const SizedBox(height: 32),
@@ -665,6 +665,7 @@
                                   "title": titleCtrl.text.trim(),
                                   "category": category,
                                   "prompt": promptCtrl.text.trim(),
+                                  "gptPrompt": gptPromptCtrl.text.trim(),
                                   "practiceData": formattedPracticeData,
                                   "aiProvider": aiProvider,
                                   "date": DateTime.now().toIso8601String(),
@@ -708,8 +709,16 @@
 // ACTIONS - OTHER
 // ============================================================
 
-    void _showPromptDialog(String docId, String title, String? value) {
-      final promptCtrl = TextEditingController(text: value ?? "");
+    void _showPromptDialog(
+      String docId,
+      String title,
+      Map<String, dynamic> data,
+    ) {
+      final aiProvider = BkRoleplayAiProvider.read(data);
+      final field = BkRoleplayAiProvider.promptFirestoreField(aiProvider);
+      final promptCtrl = TextEditingController(
+        text: BkRoleplayAiProvider.readPrompt(data, aiProvider),
+      );
 
       showDialog(
         context: context,
@@ -727,7 +736,7 @@
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
                   Text(
-                    "Prompt - $title",
+                    "${BkRoleplayAiProvider.promptFieldLabel(aiProvider)} - $title",
                     style: const TextStyle(
                       fontSize: 18,
                       fontWeight: FontWeight.bold,
@@ -760,7 +769,7 @@
                           await FirebaseFirestore.instance
                               .collection("roleplay")
                               .doc(docId)
-                              .update({"prompt": promptCtrl.text.trim()});
+                              .update({field: promptCtrl.text.trim()});
 
                           if (!mounted) return;
                           Navigator.pop(context);
