@@ -21,8 +21,6 @@ jobs:
   deploy:
     runs-on: ubuntu-latest
     timeout-minutes: 30
-    env:
-      FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: true
     steps:
       - uses: actions/checkout@v4
 
@@ -62,19 +60,37 @@ jobs:
           flutter build web --release
           test -f build/web/index.html
 
-      - uses: actions/setup-node@v4
+      - name: Deploy to Netlify (API zip)
         if: steps.cfg.outputs.method == 'cli'
-        with:
-          node-version: 24
-
-      - name: Deploy to Netlify (CLI)
-        if: steps.cfg.outputs.method == 'cli'
-        run: |
-          npx --yes netlify-cli deploy --prod --dir=build/web \
-            --message "deploy ${GITHUB_SHA::7} from GitHub Actions"
         env:
           NETLIFY_AUTH_TOKEN: ${{ secrets.NETLIFY_AUTH_TOKEN }}
           NETLIFY_SITE_ID: ${{ secrets.NETLIFY_SITE_ID }}
+        run: |
+          set -euo pipefail
+          echo "==> Verifica token e site ID..."
+          HTTP_CODE=$(curl -sS -o /tmp/netlify-site.json -w "%{http_code}" \
+            -H "Authorization: Bearer ${NETLIFY_AUTH_TOKEN}" \
+            "https://api.netlify.com/api/v1/sites/${NETLIFY_SITE_ID}")
+          if [ "$HTTP_CODE" != "200" ]; then
+            echo "::error::Netlify API HTTP ${HTTP_CODE}. Rigenera NETLIFY_AUTH_TOKEN (Netlify → User settings → Applications)."
+            cat /tmp/netlify-site.json || true
+            exit 1
+          fi
+          echo "==> Crea zip da build/web..."
+          (cd build/web && zip -r9q ../../site.zip .)
+          echo "==> Upload produzione..."
+          HTTP_CODE=$(curl -sS -o /tmp/netlify-deploy.json -w "%{http_code}" \
+            -H "Content-Type: application/zip" \
+            -H "Authorization: Bearer ${NETLIFY_AUTH_TOKEN}" \
+            --data-binary "@site.zip" \
+            "https://api.netlify.com/api/v1/sites/${NETLIFY_SITE_ID}/deploys")
+          if [ "$HTTP_CODE" != "200" ] && [ "$HTTP_CODE" != "201" ]; then
+            echo "::error::Deploy Netlify fallito HTTP ${HTTP_CODE}"
+            cat /tmp/netlify-deploy.json || true
+            exit 1
+          fi
+          echo "==> Deploy OK su backofficeadmin.netlify.app"
+          cat /tmp/netlify-deploy.json
 
       - name: Trigger build su backofficeadmin
         if: steps.cfg.outputs.method == 'hook'
