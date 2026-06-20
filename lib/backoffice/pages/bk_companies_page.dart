@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
+import '../utils/subscription_admin_helper.dart';
 import 'bk_company_details_page.dart';
 
 class BkCompaniesPage extends StatelessWidget {
@@ -138,6 +139,11 @@ class BkCompaniesPage extends StatelessWidget {
                               Colors.grey.shade700,
                               fontSize: 14,
                             ),
+                          ),
+
+                          const SizedBox(height: 12),
+                          SubscriptionCardSummary(
+                            info: SubscriptionAdminHelper.fromCompanyMap(data),
                           ),
 
                           const SizedBox(height: 18),

@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 
 import '../utils/user_account_status.dart';
+import '../utils/subscription_admin_helper.dart';
 import 'bk_user_details_page.dart';
 
 class BkUsersPage extends StatefulWidget {
@@ -176,6 +177,22 @@ class _UserList extends StatelessWidget {
                           fontSize: 14,
                         ),
                       ),
+                      if (userType == 'public') ...[
+                        const SizedBox(height: 12),
+                        FutureBuilder<SubscriptionCardInfo>(
+                          future: SubscriptionAdminHelper.loadPublicUsage(userId),
+                          builder: (context, subSnap) {
+                            if (!subSnap.hasData) {
+                              return const SizedBox(
+                                height: 20,
+                                width: 20,
+                                child: CircularProgressIndicator(strokeWidth: 2),
+                              );
+                            }
+                            return SubscriptionCardSummary(info: subSnap.data!);
+                          },
+                        ),
+                      ],
                       Padding(
                         padding: const EdgeInsets.only(top: 8),
                         child: userType == "work"
