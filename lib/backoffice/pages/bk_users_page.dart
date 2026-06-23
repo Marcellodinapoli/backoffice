@@ -44,7 +44,7 @@ class _BkUsersPageState extends State<BkUsersPage>
         Expanded(
           child: TabBarView(
             controller: _tabController,
-            children: const [
+            children: [
               _UserList(userType: "public"),
               _UserList(userType: "work"),
             ],
@@ -55,9 +55,37 @@ class _BkUsersPageState extends State<BkUsersPage>
   }
 }
 
-class _UserList extends StatelessWidget {
+class _UserList extends StatefulWidget {
   final String userType;
   const _UserList({required this.userType});
+
+  @override
+  State<_UserList> createState() => _UserListState();
+}
+
+class _UserListState extends State<_UserList> {
+  final Map<String, Future<SubscriptionCardInfo>> _usageFutures = {};
+  final Map<String, Future<DocumentSnapshot?>> _companyFutures = {};
+
+  Future<SubscriptionCardInfo> _loadPublicUsage(
+    String userId,
+    Map<String, dynamic> user,
+  ) {
+    final fallback = SubscriptionAdminHelper.fromPublicUserMap(user);
+    return _usageFutures.putIfAbsent(
+      userId,
+      () => SubscriptionAdminHelper.loadPublicUsage(userId).catchError(
+        (_) => fallback,
+      ),
+    );
+  }
+
+  Future<DocumentSnapshot?> _loadCompany(String companyId) {
+    return _companyFutures.putIfAbsent(
+      companyId,
+      () => FirebaseFirestore.instance.collection('companies').doc(companyId).get(),
+    );
+  }
 
   Color _statusColor(String status) {
     switch (status) {
@@ -87,7 +115,7 @@ class _UserList extends StatelessWidget {
   Widget build(BuildContext context) {
     final stream = FirebaseFirestore.instance
         .collection('users')
-        .where('type', isEqualTo: userType)
+        .where('type', isEqualTo: widget.userType)
         .snapshots();
 
     return StreamBuilder<QuerySnapshot>(
@@ -118,10 +146,10 @@ class _UserList extends StatelessWidget {
             final name = user['name'] ?? 'Senza nome';
             final email = user['email'] ?? 'Nessuna email';
             final rawStatus =
-                user['status'] ?? UserAccountStatus.defaultRawStatus(userType);
+                user['status'] ?? UserAccountStatus.defaultRawStatus(widget.userType);
             final status = UserAccountStatus.displayStatus(
               rawStatus,
-              type: userType,
+              type: widget.userType,
             );
             final workRole = user['workRole'];
             final companyId = user['companyId'];
@@ -177,31 +205,23 @@ class _UserList extends StatelessWidget {
                           fontSize: 14,
                         ),
                       ),
-                      if (userType == 'public') ...[
+                      if (widget.userType == 'public') ...[
                         const SizedBox(height: 12),
                         FutureBuilder<SubscriptionCardInfo>(
-                          future: SubscriptionAdminHelper.loadPublicUsage(userId),
+                          future: _loadPublicUsage(userId, user),
                           builder: (context, subSnap) {
-                            if (!subSnap.hasData) {
-                              return const SizedBox(
-                                height: 20,
-                                width: 20,
-                                child: CircularProgressIndicator(strokeWidth: 2),
-                              );
-                            }
-                            return SubscriptionCardSummary(info: subSnap.data!);
+                            final info = subSnap.data ??
+                                SubscriptionAdminHelper.fromPublicUserMap(user);
+                            return SubscriptionCardSummary(info: info);
                           },
                         ),
                       ],
                       Padding(
                         padding: const EdgeInsets.only(top: 8),
-                        child: userType == "work"
+                        child: widget.userType == "work"
                             ? FutureBuilder<DocumentSnapshot>(
                                 future: companyId != null
-                                    ? FirebaseFirestore.instance
-                                        .collection('companies')
-                                        .doc(companyId)
-                                        .get()
+                                    ? _loadCompany(companyId)
                                     : null,
                                 builder: (context, companySnap) {
                                   String companyName = "N/D";

@@ -67,6 +67,24 @@ abstract final class SubscriptionAdminHelper {
     );
   }
 
+  static SubscriptionCardInfo fromPublicUserMap(Map<String, dynamic> data) {
+    final planId = (data['subscriptionPlan'] ?? 'free').toString();
+    if (planId == 'enterprise' || data['lifetimeAccess'] == true) {
+      return SubscriptionCardInfo(
+        planLabel: planLabel(planId),
+        expiryLabel: _expiryLabel(data),
+        unlimited: true,
+        limitLabel: 'Utilizzo piano',
+      );
+    }
+
+    return SubscriptionCardInfo(
+      planLabel: planLabel(planId),
+      expiryLabel: _expiryLabel(data),
+      limitLabel: 'Utilizzo piano',
+    );
+  }
+
   static Future<SubscriptionCardInfo> loadPublicUsage(String userId) async {
     final userSnap =
         await FirebaseFirestore.instance.collection('users').doc(userId).get();
@@ -100,9 +118,16 @@ abstract final class SubscriptionAdminHelper {
     var maxUsed = 0;
     var maxLimit = 1;
     for (final entry in limits.entries) {
-      final used = entry.key == 'activeCourses'
-          ? await _countActiveCourses(userId)
-          : _readInt(counts[entry.key]);
+      int used;
+      if (entry.key == 'activeCourses') {
+        try {
+          used = await _countActiveCourses(userId);
+        } catch (_) {
+          used = _readInt(counts[entry.key]);
+        }
+      } else {
+        used = _readInt(counts[entry.key]);
+      }
       if (entry.value <= 0) continue;
       if (used / entry.value > maxUsed / maxLimit) {
         maxUsed = used;
