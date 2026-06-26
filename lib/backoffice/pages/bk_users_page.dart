@@ -65,7 +65,7 @@ class _UserList extends StatefulWidget {
 
 class _UserListState extends State<_UserList> {
   final Map<String, Future<SubscriptionCardInfo>> _usageFutures = {};
-  final Map<String, Future<DocumentSnapshot?>> _companyFutures = {};
+  final Map<String, Future<DocumentSnapshot>> _companyFutures = {};
 
   Future<SubscriptionCardInfo> _loadPublicUsage(
     String userId,
@@ -80,7 +80,7 @@ class _UserListState extends State<_UserList> {
     );
   }
 
-  Future<DocumentSnapshot?> _loadCompany(String companyId) {
+  Future<DocumentSnapshot> _loadCompany(String companyId) {
     return _companyFutures.putIfAbsent(
       companyId,
       () => FirebaseFirestore.instance.collection('companies').doc(companyId).get(),
