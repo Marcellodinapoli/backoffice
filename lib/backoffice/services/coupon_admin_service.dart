@@ -8,6 +8,7 @@ class CouponRecord {
   final int usedCount;
   final int? maxUses;
   final DateTime? expiresAt;
+  final DateTime? benefitExpiresAt;
   final String? plan;
   final String? label;
   final DateTime? createdAt;
@@ -19,6 +20,7 @@ class CouponRecord {
     required this.usedCount,
     this.maxUses,
     this.expiresAt,
+    this.benefitExpiresAt,
     this.plan,
     this.label,
     this.createdAt,
@@ -26,6 +28,7 @@ class CouponRecord {
 
   factory CouponRecord.fromDoc(String id, Map<String, dynamic> data) {
     final expires = data['expiresAt'];
+    final benefitExpires = data['benefitExpiresAt'];
     final created = data['createdAt'];
     final maxUsesRaw = data['maxUses'];
     final usedRaw = data['usedCount'];
@@ -45,6 +48,8 @@ class CouponRecord {
               ? maxUsesRaw.toInt()
               : null,
       expiresAt: expires is Timestamp ? expires.toDate() : null,
+      benefitExpiresAt:
+          benefitExpires is Timestamp ? benefitExpires.toDate() : null,
       plan: (data['plan'] ?? '').toString().trim().isEmpty
           ? null
           : (data['plan'] ?? '').toString(),
@@ -68,6 +73,9 @@ abstract final class CouponAdminService {
   static String normalizeCode(String raw) =>
       raw.trim().toUpperCase().replaceAll(RegExp(r'\s+'), '');
 
+  static DateTime endOfDay(DateTime date) =>
+      DateTime(date.year, date.month, date.day, 23, 59, 59, 999);
+
   static Stream<List<CouponRecord>> watchCoupons() {
     return _col.snapshots().map((snap) {
       final list = snap.docs
@@ -87,6 +95,7 @@ abstract final class CouponAdminService {
     String? label,
     int? maxUses,
     DateTime? expiresAt,
+    required DateTime benefitExpiresAt,
     String? restrictedPlan,
   }) async {
     final normalized = normalizeCode(code);
@@ -100,13 +109,17 @@ abstract final class CouponAdminService {
     }
 
     final uid = FirebaseAuth.instance.currentUser?.uid;
+    final benefitEnd = endOfDay(benefitExpiresAt);
     await _col.doc(normalized).set({
       'enabled': true,
-      'lifetimeFree': true,
+      'type': 'reset_limits',
+      'lifetimeFree': false,
       'usedCount': 0,
+      'benefitExpiresAt': Timestamp.fromDate(benefitEnd),
       if (label != null && label.trim().isNotEmpty) 'label': label.trim(),
       if (maxUses != null && maxUses > 0) 'maxUses': maxUses,
-      if (expiresAt != null) 'expiresAt': Timestamp.fromDate(expiresAt),
+      if (expiresAt != null)
+        'expiresAt': Timestamp.fromDate(endOfDay(expiresAt)),
       if (restrictedPlan != null && restrictedPlan.trim().isNotEmpty)
         'plan': restrictedPlan.trim().toLowerCase(),
       'createdAt': FieldValue.serverTimestamp(),
@@ -123,6 +136,64 @@ abstract final class CouponAdminService {
       {'enabled': enabled},
       SetOptions(merge: true),
     );
+  }
+
+  static Future<void> updateCoupon({
+    required String code,
+    String? label,
+    int? maxUses,
+    bool clearMaxUses = false,
+    DateTime? expiresAt,
+    bool clearExpiresAt = false,
+    required DateTime benefitExpiresAt,
+    String? restrictedPlan,
+    bool clearPlan = false,
+  }) async {
+    final normalized = normalizeCode(code);
+    final snap = await _col.doc(normalized).get();
+    if (!snap.exists) {
+      throw StateError('Coupon non trovato.');
+    }
+
+    final updates = <String, dynamic>{
+      'benefitExpiresAt': Timestamp.fromDate(endOfDay(benefitExpiresAt)),
+      'lifetimeFree': false,
+    };
+
+    final trimmedLabel = label?.trim() ?? '';
+    if (trimmedLabel.isNotEmpty) {
+      updates['label'] = trimmedLabel;
+    } else {
+      updates['label'] = FieldValue.delete();
+    }
+
+    if (maxUses != null && maxUses > 0) {
+      updates['maxUses'] = maxUses;
+    } else if (clearMaxUses) {
+      updates['maxUses'] = FieldValue.delete();
+    }
+
+    if (expiresAt != null) {
+      updates['expiresAt'] = Timestamp.fromDate(endOfDay(expiresAt));
+    } else if (clearExpiresAt) {
+      updates['expiresAt'] = FieldValue.delete();
+    }
+
+    if (restrictedPlan != null && restrictedPlan.trim().isNotEmpty) {
+      updates['plan'] = restrictedPlan.trim().toLowerCase();
+    } else if (clearPlan) {
+      updates['plan'] = FieldValue.delete();
+    }
+
+    await _col.doc(normalized).set(updates, SetOptions(merge: true));
+  }
+
+  static Future<void> deleteCoupon(String code) async {
+    final normalized = normalizeCode(code);
+    if (normalized.isEmpty) {
+      throw ArgumentError('Codice coupon non valido.');
+    }
+    await _col.doc(normalized).delete();
   }
 }
 

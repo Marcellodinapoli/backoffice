@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 
 import '../services/coupon_admin_service.dart';
+import '../widgets/coupon_edit_dialog.dart';
 
 class BkCouponsPage extends StatefulWidget {
   const BkCouponsPage({super.key});
@@ -14,6 +15,7 @@ class _BkCouponsPageState extends State<BkCouponsPage> {
   final _labelCtrl = TextEditingController();
   final _maxUsesCtrl = TextEditingController();
   DateTime? _expiresAt;
+  DateTime? _benefitExpiresAt;
   String? _restrictedPlan;
   bool _saving = false;
   String? _formError;
@@ -33,10 +35,23 @@ class _BkCouponsPageState extends State<BkCouponsPage> {
       initialDate: _expiresAt ?? now.add(const Duration(days: 365)),
       firstDate: now,
       lastDate: now.add(const Duration(days: 3650)),
-      helpText: 'Scadenza coupon (opzionale)',
+      helpText: 'Ultimo giorno per inserire il codice (opzionale)',
     );
     if (date == null || !mounted) return;
     setState(() => _expiresAt = date);
+  }
+
+  Future<void> _pickBenefitExpiry() async {
+    final now = DateTime.now();
+    final date = await showDatePicker(
+      context: context,
+      initialDate: _benefitExpiresAt ?? now.add(const Duration(days: 30)),
+      firstDate: now,
+      lastDate: now.add(const Duration(days: 3650)),
+      helpText: 'Scadenza effetto piano/limiti *',
+    );
+    if (date == null || !mounted) return;
+    setState(() => _benefitExpiresAt = date);
   }
 
   Future<void> _createCoupon() async {
@@ -56,6 +71,13 @@ class _BkCouponsPageState extends State<BkCouponsPage> {
       }
     }
 
+    if (_benefitExpiresAt == null) {
+      setState(
+        () => _formError = 'Inserisci la scadenza effetto piano/limiti.',
+      );
+      return;
+    }
+
     setState(() {
       _saving = true;
       _formError = null;
@@ -67,6 +89,7 @@ class _BkCouponsPageState extends State<BkCouponsPage> {
         label: _labelCtrl.text.trim(),
         maxUses: maxUses,
         expiresAt: _expiresAt,
+        benefitExpiresAt: _benefitExpiresAt!,
         restrictedPlan: _restrictedPlan,
       );
       if (!mounted) return;
@@ -75,6 +98,7 @@ class _BkCouponsPageState extends State<BkCouponsPage> {
       _maxUsesCtrl.clear();
       setState(() {
         _expiresAt = null;
+        _benefitExpiresAt = null;
         _restrictedPlan = null;
         _saving = false;
       });
@@ -104,8 +128,8 @@ class _BkCouponsPageState extends State<BkCouponsPage> {
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
           Text(
-            'Crea codici da inserire nel form di registrazione CreditPlanet e app. '
-            'Ogni coupon valido attiva accesso gratuito per sempre sul piano scelto.',
+            'Crea codici per CreditCalc Store (I miei dati): azzerano i limiti '
+            'e attivano il piano fino alla data di effetto indicata.',
             style: TextStyle(fontSize: 15, color: Colors.grey.shade700, height: 1.45),
           ),
           const SizedBox(height: 20),
@@ -183,12 +207,36 @@ class _BkCouponsPageState extends State<BkCouponsPage> {
               children: [
                 Expanded(
                   child: OutlinedButton.icon(
+                    onPressed: _pickBenefitExpiry,
+                    icon: const Icon(Icons.event_available_outlined, size: 18),
+                    label: Text(
+                      _benefitExpiresAt == null
+                          ? 'Scadenza effetto piano/limiti *'
+                          : 'Effetto fino al: ${_formatDate(_benefitExpiresAt!)}',
+                    ),
+                  ),
+                ),
+                if (_benefitExpiresAt != null) ...[
+                  const SizedBox(width: 8),
+                  IconButton(
+                    tooltip: 'Rimuovi scadenza effetto',
+                    onPressed: () => setState(() => _benefitExpiresAt = null),
+                    icon: const Icon(Icons.close),
+                  ),
+                ],
+              ],
+            ),
+            const SizedBox(height: 12),
+            Row(
+              children: [
+                Expanded(
+                  child: OutlinedButton.icon(
                     onPressed: _pickExpiry,
                     icon: const Icon(Icons.event_outlined, size: 18),
                     label: Text(
                       _expiresAt == null
-                          ? 'Scadenza (opzionale)'
-                          : 'Scade: ${_formatDate(_expiresAt!)}',
+                          ? 'Scadenza utilizzo codice (opzionale)'
+                          : 'Codice fino al: ${_formatDate(_expiresAt!)}',
                     ),
                   ),
                 ),
@@ -258,6 +306,14 @@ class _BkCouponsPageState extends State<BkCouponsPage> {
                   code: c.code,
                   enabled: enabled,
                 ),
+                onEdit: () async {
+                  final saved = await CouponEditDialog.show(context, c);
+                  if (saved == true && context.mounted) {
+                    ScaffoldMessenger.of(context).showSnackBar(
+                      SnackBar(content: Text('Coupon ${c.code} aggiornato.')),
+                    );
+                  }
+                },
               ),
               const SizedBox(height: 10),
             ],
@@ -274,8 +330,13 @@ class _BkCouponsPageState extends State<BkCouponsPage> {
 class _CouponTile extends StatelessWidget {
   final CouponRecord record;
   final ValueChanged<bool> onToggle;
+  final VoidCallback onEdit;
 
-  const _CouponTile({required this.record, required this.onToggle});
+  const _CouponTile({
+    required this.record,
+    required this.onToggle,
+    required this.onEdit,
+  });
 
   @override
   Widget build(BuildContext context) {
@@ -310,12 +371,19 @@ class _CouponTile extends StatelessWidget {
                   ),
                 ),
                 Switch(value: record.enabled, onChanged: onToggle),
+                IconButton(
+                  tooltip: 'Modifica',
+                  onPressed: onEdit,
+                  icon: const Icon(Icons.edit_outlined, size: 20),
+                ),
               ],
             ),
             Text(
               status,
               style: TextStyle(color: statusColor, fontWeight: FontWeight.w600),
             ),
+            if (record.createdAt != null)
+              Text('Creato il: ${_fmt(record.createdAt!)}'),
             if (record.label != null) Text('Nota: ${record.label}'),
             Text(
               'Utilizzi: ${record.usedCount}'
@@ -323,8 +391,10 @@ class _CouponTile extends StatelessWidget {
             ),
             if (record.plan != null)
               Text('Piano: ${couponPlanLabel(record.plan)}'),
+            if (record.benefitExpiresAt != null)
+              Text('Effetto fino al: ${_fmt(record.benefitExpiresAt!)}'),
             if (record.expiresAt != null)
-              Text('Scadenza: ${_fmt(record.expiresAt!)}'),
+              Text('Codice utilizzabile fino al: ${_fmt(record.expiresAt!)}'),
             if (record.lifetimeFree) const Text('Accesso gratuito per sempre'),
           ],
         ),

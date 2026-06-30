@@ -2,6 +2,7 @@
 import 'package:flutter/material.dart';
 import 'package:firebase_core/firebase_core.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:credit_calc_core/credit_calc_core.dart';
 
 import 'firebase_options.dart';
 
@@ -10,6 +11,7 @@ import 'auth/fortress_login_page.dart';
 
 // 🧩 Shell BackOffice
 import 'backoffice/bk_shell.dart';
+import 'backoffice/utils/plan_limits_refresh.dart';
 
 late FirebaseFirestore formDb;
 
@@ -26,6 +28,10 @@ Future<void> main() async {
 
   // Firestore istanza unica
   formDb = FirebaseFirestore.instance;
+
+  PublicPlanLimitsConfigService.start();
+  await PublicPlanLimitsConfigService.ensureLoaded();
+  PlanLimitsRefresh.start();
 
   runApp(const BackOfficeApp());
 }

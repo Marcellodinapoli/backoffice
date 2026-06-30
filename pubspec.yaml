@@ -5,7 +5,7 @@ publish_to: 'none'
 version: 1.0.0+1
 
 environment:
-  sdk: '>=3.0.0 <4.0.0'
+  sdk: '>=3.3.0 <4.0.0'
 
 dependencies:
   flutter:
@@ -14,12 +14,14 @@ dependencies:
   cupertino_icons: ^1.0.6
   qr_flutter: ^4.1.0
 
-  # 🔹 Firebase (versioni compatibili tra loro)
-  firebase_core: ^2.24.2
-  cloud_firestore: ^4.13.6
-  firebase_auth: ^4.17.8
-  firebase_storage: ^11.6.6
-  cloud_functions: ^4.0.7   # ⬅️ AGGIUNTO (necessario per deleteUserCompletely)
+  credit_calc_core:
+    path: ../creditplanet/packages/credit_calc_core
+
+  # Firebase (allineato a credit_calc_core)
+  firebase_core: ^4.4.0
+  cloud_firestore: ^6.1.2
+  firebase_auth: ^6.1.4
+  firebase_storage: ^13.4.3
 
   # 🔹 Selettore file (>=8.0.7 risolve warning inline implementation)
   file_picker: ^8.0.7
@@ -43,7 +45,7 @@ dependencies:
   flutter_markdown: ^0.7.4
 
   intl: ^0.19.0
-  web: ^0.5.1
+  web: ^1.1.1
 
 dev_dependencies:
   flutter_test:

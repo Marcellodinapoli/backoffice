@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import '../utils/subscription_admin_helper.dart';
+import '../widgets/coupon_card_summary.dart';
 import 'bk_company_details_page.dart';
 
 class BkCompaniesPage extends StatelessWidget {
@@ -141,9 +142,20 @@ class BkCompaniesPage extends StatelessWidget {
                             ),
                           ),
 
-                          const SizedBox(height: 12),
-                          SubscriptionCardSummary(
-                            info: SubscriptionAdminHelper.fromCompanyMap(data),
+                          const SizedBox(height: 8),
+                          Text(
+                            'Piano: ${SubscriptionAdminHelper.planLabel(data['subscriptionPlan']?.toString())}',
+                            style: const TextStyle(
+                              fontSize: 13,
+                              fontWeight: FontWeight.w600,
+                            ),
+                          ),
+
+                          CouponCardSummary(
+                            entityId: companyId,
+                            couponCode: data['couponCode']?.toString(),
+                            subscriptionExpiresAt:
+                                data['subscriptionExpiresAt'] as Timestamp?,
                           ),
 
                           const SizedBox(height: 18),
