@@ -37,6 +37,27 @@ abstract final class CouponDisplayHelper {
   static String formatDate(DateTime? value) =>
       value == null ? '—' : _dateFmt.format(value);
 
+  static bool isCouponBenefitExpired({
+    Timestamp? subscriptionExpiresAt,
+    DateTime? couponBenefitExpiresAt,
+    bool couponLifetimeFree = false,
+  }) {
+    if (couponLifetimeFree &&
+        subscriptionExpiresAt == null &&
+        couponBenefitExpiresAt == null) {
+      return false;
+    }
+
+    final now = DateTime.now();
+    if (subscriptionExpiresAt != null) {
+      return subscriptionExpiresAt.toDate().isBefore(now);
+    }
+    if (couponBenefitExpiresAt != null) {
+      return couponBenefitExpiresAt.isBefore(now);
+    }
+    return false;
+  }
+
   static Future<CouponEntityDetails> detailsForEntity(
     String couponCode,
     String entityId,

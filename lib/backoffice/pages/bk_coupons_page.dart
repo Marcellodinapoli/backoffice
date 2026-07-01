@@ -17,6 +17,7 @@ class _BkCouponsPageState extends State<BkCouponsPage> {
   DateTime? _expiresAt;
   DateTime? _benefitExpiresAt;
   String? _restrictedPlan;
+  String _targetAudience = 'users';
   bool _saving = false;
   String? _formError;
 
@@ -91,6 +92,7 @@ class _BkCouponsPageState extends State<BkCouponsPage> {
         expiresAt: _expiresAt,
         benefitExpiresAt: _benefitExpiresAt!,
         restrictedPlan: _restrictedPlan,
+        targetAudience: _targetAudience,
       );
       if (!mounted) return;
       _codeCtrl.clear();
@@ -100,6 +102,7 @@ class _BkCouponsPageState extends State<BkCouponsPage> {
         _expiresAt = null;
         _benefitExpiresAt = null;
         _restrictedPlan = null;
+        _targetAudience = 'users';
         _saving = false;
       });
       ScaffoldMessenger.of(context).showSnackBar(
@@ -182,6 +185,21 @@ class _BkCouponsPageState extends State<BkCouponsPage> {
               decoration: const InputDecoration(
                 labelText: 'Utilizzi massimi (vuoto = illimitati)',
                 border: OutlineInputBorder(),
+              ),
+            ),
+            const SizedBox(height: 12),
+            DropdownButtonFormField<String>(
+              value: _targetAudience,
+              decoration: const InputDecoration(
+                labelText: 'Destinatario *',
+                border: OutlineInputBorder(),
+              ),
+              items: const [
+                DropdownMenuItem(value: 'users', child: Text('Utenti')),
+                DropdownMenuItem(value: 'companies', child: Text('Aziende')),
+              ],
+              onChanged: (v) => setState(
+                () => _targetAudience = v ?? 'users',
               ),
             ),
             const SizedBox(height: 12),
@@ -348,9 +366,11 @@ class _CouponTile extends StatelessWidget {
                 ? 'Esaurito'
                 : 'Attivo';
 
-    final statusColor = status == 'Attivo'
-        ? const Color(0xFF1B5E20)
-        : Colors.grey.shade700;
+    final statusColor = status == 'Scaduto'
+        ? Colors.red
+        : status == 'Attivo'
+            ? const Color(0xFF1B5E20)
+            : Colors.grey.shade700;
 
     return Card(
       child: Padding(

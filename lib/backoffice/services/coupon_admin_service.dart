@@ -97,6 +97,7 @@ abstract final class CouponAdminService {
     DateTime? expiresAt,
     required DateTime benefitExpiresAt,
     String? restrictedPlan,
+    String targetAudience = 'users',
   }) async {
     final normalized = normalizeCode(code);
     if (normalized.isEmpty) {
@@ -110,9 +111,12 @@ abstract final class CouponAdminService {
 
     final uid = FirebaseAuth.instance.currentUser?.uid;
     final benefitEnd = endOfDay(benefitExpiresAt);
+    final audience =
+        targetAudience == 'companies' ? 'companies' : 'users';
     await _col.doc(normalized).set({
       'enabled': true,
       'type': 'reset_limits',
+      'targetAudience': audience,
       'lifetimeFree': false,
       'usedCount': 0,
       'benefitExpiresAt': Timestamp.fromDate(benefitEnd),

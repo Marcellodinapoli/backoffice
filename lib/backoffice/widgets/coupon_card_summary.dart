@@ -29,6 +29,11 @@ class CouponCardSummary extends StatelessWidget {
           couponBenefitExpiresAt: details.benefitExpiresAt,
           couponLifetimeFree: details.lifetimeFree,
         );
+        final expired = CouponDisplayHelper.isCouponBenefitExpired(
+          subscriptionExpiresAt: subscriptionExpiresAt,
+          couponBenefitExpiresAt: details.benefitExpiresAt,
+          couponLifetimeFree: details.lifetimeFree,
+        );
 
         return Padding(
           padding: const EdgeInsets.only(top: 8),
@@ -51,6 +56,15 @@ class CouponCardSummary extends StatelessWidget {
                 'Effetto limiti fino al: $benefitExpiry',
                 style: TextStyle(fontSize: 13, color: Colors.grey.shade700),
               ),
+              if (expired)
+                const Text(
+                  'Scaduto',
+                  style: TextStyle(
+                    fontSize: 13,
+                    color: Colors.red,
+                    fontWeight: FontWeight.w700,
+                  ),
+                ),
             ],
           ),
         );
